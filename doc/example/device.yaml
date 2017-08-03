@@ -7,3 +7,5 @@ antenna: 1
 card-reader: 1
 speaker: 1
 lock-amount: 18
+router-board: 1
+sim-no: 13700000000

@@ -39,6 +39,14 @@ properties:
     description: 锁的数量
     example: 18
     type: int
+  router-board:
+    description: 路由板型号
+    example: 1
+    type: int
+  sim-no:
+    description: SIM 卡号
+    example: 13700000000
+    type: int
 type:
 - object
 id: device
