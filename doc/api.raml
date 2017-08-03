@@ -1,0 +1,94 @@
+#%RAML 1.0
+---
+title: 寄存柜设备管理接口
+baseUri: http://admin-api.box.fengchaohuzhu.com/{version}
+version: v1
+
+types:
+  session: !include schema/session.json
+  accounts: !include schema/accounts.json
+  devices: !include schema/devices.json
+  device: !include schema/device.json
+
+securitySchemes:
+  auth-box:
+    description: 类似oauth2的授权方式
+    type: x-{auth-box}
+    describedBy:
+      headers:
+        Token:
+          description: 传输 Access Token
+          type: string
+
+traits:
+  secured:
+    usage: 用于需要用户授权后才能使用的接口
+    description: 因为 raml2html 尚不完善，无法生成 securedBy 的 responses 部分, 用此约束来模拟。
+    responses:
+      401:
+        description: token 无效。
+      403:
+        description: 无 token 访问未授权资源。
+  rate-limited:
+    usage: 用于限制接口的访问频率
+    responses:
+      503:
+        description: 超出允许的访问限制次数。
+        headers:
+          X-waiting-period:
+            description: x秒后允许再次发出请求
+            type: integer
+            required: true
+            minimum: 1
+            maximum: 3600
+            example: 34
+  searchable:
+    usage: 用于可搜索的接口
+    queryParameters:
+      query:
+        description: |
+          JSON array [{"field1","value1","operator1"},{"field2","value2","operator2"},...,{"fieldN","valueN","operatorN"}] <<description>>
+        example: |
+          <<example>>
+        required: false
+  pageable:
+    usage: 用于可分页的列表接口
+    queryParameters:
+      offset:
+        description: Skip over a number of elements by specifying an offset value for the query
+        type: integer
+        required: false
+        example: 20
+        default: 0
+      limit:
+        description: Limit the number of elements on the response
+        type: integer
+        required: false
+        example: 80
+        default: 10
+  sortable:
+    usage: 用于可排序的列表接口
+    queryParameters:
+      orderBy:
+        description: |
+          Order by field: <<fieldsList>>
+        type: string
+        required: false
+      order:
+        description: Order
+        enum: [desc, asc]
+        default: desc
+        required: false
+  deleteable:
+    usage: 用于删除接口
+    responses:
+      200:
+        description: 删除成功
+      404:
+        description: 对象不存在
+
+/sessions: !include session.raml
+
+/accounts: !include account.raml
+
+/devices: !include device.raml

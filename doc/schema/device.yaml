@@ -1,0 +1,44 @@
+---
+"$schema": http://json-schema.org/draft-04/schema
+title: 寄存柜 - Admin - device
+description: 设备基本信息
+properties:
+  mac:
+    description: 设备的 MAC 地址
+    example: 00:00:00:00:00:00
+    type: string
+  address:
+    description: 设备放置的地址
+    example: 东直门东方银座写字楼23D
+    type: string
+  android-board:
+    description: android 板型号
+    example: 1
+    type: int
+  lock-board:
+    description: 锁控板型号
+    example: 1
+    type: int
+  wireless:
+    description: 无线通讯方式
+    example: 1
+    type: int
+  antenna:
+    description: 天线型号
+    example: 1
+    type: int
+  card-reader:
+    description: 读卡器型号
+    example: 1
+    type: int
+  speaker:
+    description: 扬声器型号
+    example: 1
+    type: int
+  lock-amount:
+    description: 锁的数量
+    example: 18
+    type: int
+type:
+- object
+id: device

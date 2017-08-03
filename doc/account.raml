@@ -1,0 +1,85 @@
+displayName: 帐号管理
+get:
+  description: 帐号列表
+  securedBy: [ auth-box ]
+  is: [ secured, rate-limited, pageable, searchable: {description: "with valid searchable fields: account", example: "[\"account\", \"admin\", \"like\"]"}, sortable: {fieldsList: "account, name"} ]
+  responses:
+    200:
+      body:
+        application/json:
+          type: accounts
+          example: !include example/accounts.json
+post:
+  description: 增加帐号
+  securedBy: [ auth-box ]
+  is: [ secured, rate-limited ]
+  body:
+    application/json:
+      properties:
+        account:
+          description: 用户帐号
+          type: string
+          example: admin
+        password:
+          description: 用户密码
+          type: string
+          example: top security
+        name:
+          description: 使用者姓名
+          type: string
+          example: xxx
+      example: |
+        { "account": "admin", "password": "top security", "name": "xxx" }
+  responses:
+    200:
+      body:
+        application/json:
+          type: account
+          example: !include example/account.json
+/{aid}:
+  uriParameters:
+    aid:
+      type: int
+      description: 帐号ID
+      required: true
+  get:
+    description: 帐号详情
+    securedBy: [ auth-box ]
+    is: [ secured, rate-limited ]
+    responses:
+      200:
+        body:
+          application/json:
+            type: account
+            example: !include example/account.json
+  delete:
+    description: 删除帐号
+    securedBy: [ auth-box ]
+    is: [ secured, rate-limited, deleteable ]
+  put:
+    description: 修改帐号
+    securedBy: [ auth-box ]
+    is: [ secured, rate-limited ]
+    body:
+      application/json:
+        properties:
+          account:
+            description: 用户帐号
+            type: string
+            example: admin
+          password:
+            description: 用户密码
+            type: string
+            example: top security
+          name:
+            description: 使用者姓名
+            type: string
+            example: xxx
+        example: |
+          { "account": "admin", "password": "top security", "name": "xxx" }
+    responses:
+      200:
+        body:
+          application/json:
+            type: account
+            example: !include example/account.json

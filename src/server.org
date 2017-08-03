@@ -1,0 +1,413 @@
+
+* 程序框架
+#+begin_src nim :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/src/admin_api_server.nim
+  import jester, asyncdispatch, json, db_postgres as pg, random, redis as redis
+  import parseutils
+
+  settings:
+    port = 8888.Port
+
+  let db = pg.open("", "box", "123456", "host=db port=5432 dbname=box")
+  let redisClient = redis.open("cache")
+
+  <<randstr>>
+  <<generate-session>>
+  <<row2device>>
+
+  <<check-token>>
+  <<pageable>>
+  <<list-response>>
+
+  routes:
+    get "/":
+      halt()
+
+    <<signin>>
+    <<signout>>
+    <<list-devices>>
+    <<list-unregistered-devices>>
+    <<register-device>>
+    <<device-detail>>
+    <<modify-device>>
+    <<delete-device>>
+
+  runforever()
+#+end_src
+
+* 用户管理
+** 用户列表
+** 增加用户
+** 删除用户
+** 修改用户
+* 分组管理
+** 分组列表
+** 增加分组
+** 修改分组
+** 删除分组
+* 权限管理
+** 权限列表
+** 增加权限
+** 删除权限
+** 修改权限
+* 会话管理
+** 用户登录
+
+用户登录接口支持 post 请求，不需要检查 token，参数从 body 中获取，其内容如下：
+
+| name     | type   | default | note                           |
+|----------+--------+---------+--------------------------------|
+| account  | string |         |                                |
+| password | string |         | 在客户端需要用 md5 + salt 加密 |
+
+虽然在数据库中验证帐号密码，对数据库的压力比较大，但是管理端的用户量很有限，目前
+不会对数据库产生特别大的影响。在验证的同时获取用户的 UID, 并调用辅助函数生成会话
+的 access_token, refresh_token 和 expires_in。把 uid 和 refresh token 单独提出来，
+放置到缓存中 access token 的名下。之所以除了 uid 还要加上 refresh token，是为了
+在用户退出时，执行删除 refresh token 操作时，比较容易找到 access token 对应的
+refresh token。要知道，用户退出时，提供的只有 access token，如果不建立这种关系，
+删除时就会在缓存中留下大量无效的 refresh token。
+
+#+begin_src nim :noweb-ref signin
+  post "/sessions":
+    try:
+      let data = parseJson(request.body)
+      let uid = db.getValue(sql"select id from accounts where account = ? and password = ?", data["account"].getStr, data["password"].getStr)
+      if uid != "":
+        let
+          session = generate_session()
+          refresh_token = session["refresh-token"].getStr
+          access_token = session["access-token"].getStr
+          value = %* { "uid": uid, "refresh": refresh_token }
+        redisClient.setk("session.access." & access_token, $value)
+        redisClient.setk("session.refresh." & refresh_token, uid)
+        resp Http200, @[("content-type", "application/json")], $session
+      else:
+        resp Http404, "帐号或密码错误"
+    except:
+      resp Http500, getCurrentExceptionMsg()
+#+end_src
+
+会话信息里包括两个 token 和到期时间。两个 token 的长度都是 32 个字符。到期时间设
+置为 3600 秒，也就是一个小时。到期时间是指 access token 的到期时间，理论上是越短
+越安全; refresh token 的有效期定为 1 个月，这样用户每月只需要登录一次。
+
+#+begin_src nim :noweb-ref generate-session
+  proc generate_session(): JsonNode =
+    let
+      access_token = randstr(32)
+      refresh_token = randstr(32)
+    result = %* { "access-token": access_token, "refresh-token": refresh_token, "expires-in": 3600 }
+#+end_src
+
+** 用户退出
+
+用户退出时，把用户对应的 access token 和 refresh token 从缓存中删除就可以了。
+
+#+begin_src nim :noweb-ref signout
+  delete "/sessions":
+    check_token(request):
+      discard redis.del(redisClient, @["session.access." & access_token])
+      discard redis.del(redisClient, @["session.refresh." & refresh_token])
+      resp Http200, ""
+#+end_src
+** 刷新令牌
+* 设备管理
+** 设备列表
+
+设备列表分为两种情况：如果请求头里有 x-method，并且 x-method 等于 options，那么
+列出未登记的设备；否则列出已登记的设备列表。这样做是为了兼容某些不支持 options
+命令的客户端。
+
+未登记设备的逻辑在未登记设备列表小节详细解说，这里单说已等级设备列表。先从数据库
+中读取到设备的总数。(注意，数据库取出来的都是 string 类型，需要手动转化成对应的
+类型。) 然后去数据库获取给定范围的数据集，用 row2device 转化成 JsonArray 返回给
+前端。row2device 对结果集的字段顺序有要求，因此 sql 语句中的字段顺序不能改变。
+
+#+begin_src nim :noweb-ref list-devices
+  get "/devices":
+    check_token(request):
+      pageable:
+        if request.headers.has_key("x-method") and $request.headers["x-method"] == "options":
+          # query unregistered devices
+          let keys = redis.keys(redisClient, "pin." & @"query" & "*")
+          if len(keys) > offset:
+            var data: JsonNode = newJArray()
+            for idx in offset..(min(len(keys), offset + limit) - 1):
+              let
+                pin = keys[idx]
+                mac = redis.get(redisClient, pin)
+              data.add(%* { "pin": pin, "mac": mac })
+            list_response(len(keys), offset, data)
+          else:
+            list_response(0, 0, %* @[])
+        else:
+          let countrow = db.getRow(sql"select count(mac) from devices")
+          var count: int = 0
+          discard countrow[0].parseInt(count)
+          let rows = db.getAllRows(sql"select mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount from devices limit ?, ?", offset, limit)
+          var devices: JsonNode = newJArray()
+          for row in rows:
+            devices.add(row2device(row))
+          list_response(count, offset, devices)
+#+end_src
+
+** 未登记设备列表
+
+未登记设备列表是从缓存中获取的。所有的未登记设备都在缓存中以 PIN 码为主键保存。
+获取列表时，遍历所有的 PIN 主键，选取指定范围内的设备，返回给前端。注意，range
+表达式是闭区间。
+
+#+begin_src nim :noweb-ref list-unregistered-devices
+  options "/devices":
+    check_token(request):
+      pageable:
+        let keys = redis.keys(redisClient, "pin." & @"query" & "*")
+        if len(keys) > offset:
+          var data: JsonNode = newJArray()
+          for idx in offset..(min(len(keys), offset + limit) - 1):
+            let
+              pin = keys[idx]
+              mac = redis.get(redisClient, pin)
+            data.add(%* { "pin": pin, "mac": mac })
+          list_response(len(keys), offset, data)
+        else:
+          resp Http200, "Okay"
+#+end_src
+
+** 登记设备
+
+登记设备把设备信息保存到数据库中。设备的信息包括：
+
+| name          | type   | default | note             |
+|---------------+--------+---------+------------------|
+| mac           | string |         | mac地址          |
+| address       | string |         | 设备安放地址     |
+| android-board | int    |       0 | android 主板型号 |
+| lock-board    | int    |       0 | 锁控板型号       |
+| lock-amount   | int    |      18 | 设备上锁的数量   |
+| wireless      | int    |       0 | 无线网络连接方式 |
+| antenna       | int    |       0 | 天线类型         |
+| card-reader   | int    |       0 | 读卡器类型       |
+| speaker       | int    |       0 | 扬声器类型       |
+
+android主板型号:
+
+| type | name    |
+|------+---------|
+|    0 | 无      |
+|    1 | A20主板 |
+
+锁控板型号：
+
+| type | name           |
+|------+----------------|
+|    0 | 无             |
+|    1 | 20路中立锁控板 |
+
+无线网络连接方式：
+
+| type | name     |
+|------+----------|
+|    0 | 有线连接 |
+|    1 | WIFI     |
+|    2 | 移动3G   |
+|    3 | 移动4G   |
+|    4 | 联通3G   |
+|    5 | 联通4G   |
+|    6 | 电信3G   |
+|    7 | 电信4G   |
+|    8 | 全网通   |
+
+天线类型：
+
+| type | name     |
+|------+----------|
+|    0 | 无       |
+|    1 | 棒状天线 |
+|    2 | 吸盘天线 |
+
+读卡器类型：
+
+| type | name            |
+|------+-----------------|
+|    0 | 无              |
+|    1 | ID/IC USB读卡器 |
+
+扬声器类型：
+
+| type | name             |
+|------+------------------|
+|    0 | 无               |
+|    1 | 插针式立体声音箱 |
+
+
+#+begin_src nim :noweb-ref register-device
+  post "/devices":
+    check_token(request):
+      let data = parseJson(request.body)
+      if db.tryExec(sql"insert into devices(mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount) values(?, ?, ?, ?, ?, ?, ?, ?)", data["mac"], data["address"], data["android-board"], data["lock-board"], data["wireless"], data["antenna"], data["card-reader"], data["lock-amount"]):
+        resp Http200, @[("content-type", "application/json")], $data
+      else:
+        resp Http500, "Database Error"
+#+end_src
+** 设备信息
+
+设备信息功能从数据库中获取设备详情返回给前端。如果设备不存在，就返回 404。
+
+#+begin_src nim :noweb-ref device-detail
+  get "/devices/@mac":
+    check_token(request):
+      let row = db.getRow(sql"select mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount from devices where mac = ?", @"mac")
+      if row[0] != "":
+        let data = row2device(row)
+        resp Http200, @[("content-type", "application/json")], $data
+      else:
+        resp Http404, "Not found"
+#+end_src
+
+** 修改配置
+
+修改配置需要如下参数。
+
+| name          | type   | default | note             |
+|---------------+--------+---------+------------------|
+| address       | string |         | 设备安放地址     |
+| android-board | int    |       0 | android 主板型号 |
+| lock-board    | int    |       0 | 锁控板型号       |
+| lock-amount   | int    |      18 | 设备上锁的数量   |
+| wireless      | int    |       0 | 无线网络连接方式 |
+| antenna       | int    |       0 | 天线类型         |
+| card-reader   | int    |       0 | 读卡器类型       |
+| speaker       | int    |       0 | 扬声器类型       |
+
+#+begin_src nim :noweb-ref modify-device
+  put "/devices/@mac":
+    check_token(request):
+      let data = parseJson(request.body)
+      if db.tryExec(sql"update devices set address = ?, android_board = ?, lock_board = ?, wireless = ?, antenna = ?, card_reader = ?, lock_amount = ? where mac = ?", data["address"], data["android-board"], data["lock-board"], data["wireless"], data["antenna"], data["card-reader"], data["lock-amount"], data["mac"]):
+        resp Http200, @[("content-type", "application/json")], $data
+      else:
+        resp Http500, "Database Error"
+#+end_src
+** 删除设备
+
+删除设备功能直接在数据库中删除设备信息。
+
+#+begin_src nim :noweb-ref delete-device
+
+    delete "/devices/@mac":
+      check_token(request):
+        if db.tryExec(sql"delete from devices where mac = ?", @"mac"):
+          resp Http200, ""
+        else:
+          resp Http500, "Database Error"
+#+end_src
+
+* 辅助函数
+
+** randstr
+
+从候选字母表中随机选择字符组成指定长度的字符串。
+
+候选字母表由数字，小写字母和大写字母组成，不包含其它标点符号。这样做的原因有两点：
+
+1. 大小写敏感，能使用的范围更广，出现重复的概率更低。
+2. 没有标点符号，在 http 协议上使用更可靠。
+
+每次调用 randomize 相当于用当前时间来生成新的随机序列，这样可以增加随机性。
+
+#+begin_src nim :noweb-ref randstr
+
+  proc randstr(length: int): string =
+    randomize()
+    let alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    let alen = len(alphabet)
+    result = ""
+    for i in 0..length:
+      var idx = random(alen)
+      result &= alphabet[idx]
+#+end_src
+
+** check_token
+
+check_token 是一个 template，用于需要用户身份认证的接口。实现的流程是从 request
+获得 token，然后去缓存中取得对应的会话数据，如果一切顺利，则调用 actions 执行后
+续的程序；否则返回错误信息。
+
+access_token, refresh_token, uid 在申明时，加上了 `{.inject.}`, 这样在 actions
+的代码中就可以直接引用这些变量。
+
+redisClient 是全局变量，在 template 中可以直接使用。
+
+#+begin_src nim :noweb-ref check-token
+
+  template check_token(request: Request, actions: untyped): untyped =
+    try:
+      let access_token {.inject.} = $request.headers["token"]
+      let value = redisClient.get("session.access." & access_token)
+      if value != nil:
+        let data = parseJson(value)
+        let refresh_token {.inject.} = data["refresh"].getStr
+        let uid {.inject.} = data["uid"].getStr
+        if uid != nil:
+          actions
+        else:
+          resp Http403, "Permission Denied"
+      else:
+        resp Http403, "Permission Denied"
+    except:
+      resp Http401, "Invalid Token " & getCurrentExceptionMsg()
+
+#+end_src
+
+** pageable
+
+pageable template 简化了对分页请求的处理。offset 的默认值是 0, limit 的默认值是
+20。它们以 int 类型注入到后续的 actions 代码中。
+
+#+begin_src nim :noweb-ref pageable
+
+  template pageable(actions: untyped): untyped =
+    let
+      offsetstr = if @"offset" != "": @"offset" else: "0"
+      limitstr = if @"limit" != "": @"limit" else: "20"
+    var
+      offset {.inject.}: int = 0
+      limit {.inject.}: int = 0
+    discard offsetstr.parseInt(offset)
+    discard limitstr.parseInt(limit)
+    actions
+
+#+end_src
+
+** list_response
+
+list_response 简化返回列表数据的处理流程。只要提供 total, offset 和 data，就能按要求打包返回给前端。
+
+#+begin_src nim :noweb-ref list-response
+
+  template list_response(total: int, offset: int, data: JsonNode): untyped =
+    let final = %* { "total": total, "offset": offset }
+    final["data"] = data
+    resp Http200, @[("content-type", "application/json")], $final
+
+#+end_src
+
+** row2device
+
+row2device 把数据库的结果集转化成 JsonNode。
+
+#+begin_src nim :noweb-ref row2device
+
+  proc row2device(row: seq[string]): JsonNode =
+    let
+      mac = row[0]
+      address = row[1]
+      android = row[2]
+      lock = row[3]
+      wireless = row[4]
+      antenna = row[5]
+      card_reader = row[6]
+      amount = row[7]
+    result = %* { "mac": mac, "address": address, "android-board": android, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": amount}
+#+end_src

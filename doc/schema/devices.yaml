@@ -1,0 +1,21 @@
+---
+"$schema": http://json-schema.org/draft-04/schema
+title: 寄存柜 - Admin - devices
+description: 设备列表信息
+properties:
+  total:
+    description: 结果集总数
+    type: int
+  offset:
+    description: 当前结果在总结果集中的开始地址
+    type: int
+  data:
+    description: 设备列表
+    type: array
+    items:
+      $ref: /device#
+    minItems: 0
+    uniqueItems: true
+type:
+- object
+id: devices

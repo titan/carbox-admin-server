@@ -1,0 +1,92 @@
+* 编译设置
+#+begin_src nimscript :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/admin_api_server.nimble
+  # Package
+
+  version       = "0.1.0"
+  author        = "Titan"
+  description   = "Restful server for box"
+  license       = "MIT"
+
+  bin           = @["admin_api_server"]
+  srcDir        = "src"
+
+  # Dependencies
+
+  requires "nim >= 0.17.0"
+  requires "jester >= 0.1.1", "redis >= 0.2.0"
+#+end_src
+
+* 发行脚本
+#+begin_src text :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/Dockerfile
+  FROM hive/box-base:3.6
+
+  COPY admin_api_server /admin-api-server
+
+  CMD trap exit TERM; /admin-api-server & wait
+#+end_src
+
+#+begin_src text :noweb-ref name
+  admin-server
+#+end_src
+
+#+begin_src text :noweb-ref app-version
+  0.1.4
+#+end_src
+
+#+begin_src text :noweb-ref tag
+  hive/<<name>>:<<app-version>>
+#+end_src
+
+** 制作镜像
+#+begin_src shell :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/build-image.sh
+  #! /bin/sh
+  docker build -t <<tag>> .
+#+end_src
+
+** 导出镜像
+#+begin_src shell :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/export-image.sh
+  #! /bin/sh
+  docker save -o /dev/shm/<<name>>-<<app-version>>.tar <<tag>>
+  xz -z -9 /dev/shm/<<name>>-<<app-version>>.tar
+#+end_src
+
+** 清除镜像
+#+begin_src shell :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/clean-image.sh
+  #! /bin/sh
+  docker stop <<name>>
+  docker rm <<name>>
+  docker rmi <<tag>>
+#+end_src
+
+** 启动容器
+#+begin_src yaml :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/docker-compose.yaml
+  version: '3'
+  services:
+    server:
+      image: <<tag>>
+      ports:
+        - "8888:8888"
+      volumes:
+        - "/dev/shm/:/share"
+      command: /bin/sh
+      tty: true
+      depends_on:
+        - cache
+        - db
+    cache:
+      volumes:
+        - "/dev/shm/:/data"
+      command: redis-server --appendonly yes
+      image: redis:4-alpine
+    db:
+      image: postgres:10-alpine
+      volumes:
+        - "/dev/shm/:/share"
+      ports:
+        - "5432:5432"
+      environment:
+        POSTGRES_USER: box
+        POSTGRES_DB: box
+        POSTGRES_PASSWORD: 123456
+        LANG: zh_CN.utf8
+#+end_src

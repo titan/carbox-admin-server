@@ -1,0 +1,16 @@
+---
+"$schema": http://json-schema.org/draft-04/-schema
+title: 寄存柜 - Admin - account
+description: 帐号基本信息
+properties:
+  account:
+    description: account 名称
+    example: xxx
+    type: string
+  name:
+    description: 使用者姓名
+    example: xxx
+    type: string
+type:
+- object
+id: account

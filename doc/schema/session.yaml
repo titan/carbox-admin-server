@@ -1,0 +1,20 @@
+---
+"$schema": http://json-schema.org/draft-04/schema
+title: 寄存柜 - Admin - session
+description: 会话基本信息
+properties:
+  access_token:
+    description: 访问令牌
+    example: xxx
+    type: string
+  refresh_token:
+    description: 刷新令牌
+    example: xxx
+    type: string
+  expires_in:
+    description: 过期时间(秒)
+    example: 3600
+    type: int
+type:
+- object
+id: session

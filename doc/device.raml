@@ -1,0 +1,73 @@
+displayName: 设备管理
+get:
+  description: 设备列表
+  securedBy: [ auth-box ]
+  is: [ secured, rate-limited, pageable, searchable: {description: "with valid searchable fields: mac, android-board, lock-board, wireless, antenna, card-reader, lock-amount", example: "[\"android-board\", \"1\", \"equal\"]"}, sortable: {fieldsList: "mac, android-board, lock-board, wireless, antenna, card-reader, lock-amount"} ]
+  responses:
+    200:
+      body:
+        application/json:
+          type: devices
+          example: !include example/devices.json
+post:
+  description: 增加设备
+  securedBy: [ auth-box ]
+  is: [ secured, rate-limited ]
+  body:
+    application/json:
+      type: device
+      example: !include example/device.json
+  responses:
+    200:
+      body:
+        application/json:
+          type: device
+          example: !include example/device.json
+options:
+  description: |
+    未注册设备列表
+
+    从缓存中获取所有未注册的设备。设备在缓存中以 "pin.${pin}" 为主键，其值是设备的 mac 地址。该键值对的有效期仅为 3 分钟。
+  securedBy: [ auth-box ]
+  is: [ secured, rate-limited, pageable, searchable: {description: "with valid searchable fields: pin", example: "[\"pin\", \"12345678\", \"equal\"]"} ]
+  responses:
+    200:
+      body:
+        application/json:
+          example: |
+            { "total": 1, "offset": 0, data: [{ "pin": "12345678", "mac": "00:00:00:00:00:00" }]}
+
+/{mac}:
+  uriParameters:
+    mac:
+      type: string
+      description: 设备MAC地址
+      required: true
+  get:
+    description: 设备详情
+    securedBy: [ auth-box ]
+    is: [ secured, rate-limited ]
+    responses:
+      200:
+        body:
+          application/json:
+            type: device
+            example: !include example/device.json
+  delete:
+    description: 删除设备
+    securedBy: [ auth-box ]
+    is: [ secured, rate-limited, deleteable ]
+  put:
+    description: 修改设备
+    securedBy: [ auth-box ]
+    is: [ secured, rate-limited ]
+    body:
+      application/json:
+        type: device
+        example: !include example/device.json
+    responses:
+      200:
+        body:
+          application/json:
+            type: device
+            example: !include example/device.json

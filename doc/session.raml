@@ -1,0 +1,52 @@
+displayName: 会话管理
+post:
+  description: 登录系统
+  is: [ rate-limited ]
+  body:
+    application/json:
+      properties:
+        account:
+          description: 用户帐号
+          type: string
+          example: admin
+        password:
+          description: 用户密码
+          type: string
+          example: top security
+      example: |
+        { "account": "admin", "password": "top security" }
+  responses:
+    200:
+      body:
+        application/json:
+          type: session
+          example: !include example/session.json
+delete:
+  description: 退出系统
+  securedBy: [ auth-box ]
+  is: [ secured, rate-limited ]
+  responses:
+    200:
+      description: 成功
+put:
+  description: 刷新令牌
+  is: [ rate-limited ]
+  body:
+    application/json:
+      properties:
+        access_token:
+          description: 访问令牌
+          type: string
+          example: xxx
+        refresh_token:
+          description: 刷新令牌
+          type: string
+          example: xxx
+      example: |
+        { "access_token": "xxx", "refresh_token": "xxx" }
+  responses:
+    200:
+      body:
+        application/json:
+          type: session
+          example: !include example/session.json

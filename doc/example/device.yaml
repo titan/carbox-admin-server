@@ -1,0 +1,9 @@
+mac: "00:00:00:00:00:00"
+address: 东直门东方银座写字楼23D
+android-board: 1
+lock-board: 1
+wireless: 1
+antenna: 1
+card-reader: 1
+speaker: 1
+lock-amount: 18
