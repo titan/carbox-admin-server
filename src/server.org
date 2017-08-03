@@ -144,7 +144,7 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
           let countrow = db.getRow(sql"select count(mac) from devices")
           var count: int = 0
           discard countrow[0].parseInt(count)
-          let rows = db.getAllRows(sql"select mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount from devices limit ?, ?", offset, limit)
+          let rows = db.getAllRows(sql"select mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no from devices limit ?, ?", offset, limit)
           var devices: JsonNode = newJArray()
           for row in rows:
             devices.add(row2device(row))
@@ -240,12 +240,18 @@ android主板型号:
 |    0 | 无               |
 |    1 | 插针式立体声音箱 |
 
+路由板类型:
+
+| type | name |
+|------+------|
+|    0 | 无   |
+|    1 | xxxx |
 
 #+begin_src nim :noweb-ref register-device
   post "/devices":
     check_token(request):
       let data = parseJson(request.body)
-      if db.tryExec(sql"insert into devices(mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount) values(?, ?, ?, ?, ?, ?, ?, ?)", data["mac"], data["address"], data["android-board"], data["lock-board"], data["wireless"], data["antenna"], data["card-reader"], data["lock-amount"]):
+      if db.tryExec(sql"insert into devices(mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", data["mac"], data["address"], data["android-board"], data["lock-board"], data["wireless"], data["antenna"], data["card-reader"], data["lock-amount"], data["router-board"], data["sim-no"]):
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http500, "Database Error"
@@ -257,7 +263,7 @@ android主板型号:
 #+begin_src nim :noweb-ref device-detail
   get "/devices/@mac":
     check_token(request):
-      let row = db.getRow(sql"select mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount from devices where mac = ?", @"mac")
+      let row = db.getRow(sql"select mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no from devices where mac = ?", @"mac")
       if row[0] != "":
         let data = row2device(row)
         resp Http200, @[("content-type", "application/json")], $data
@@ -277,14 +283,16 @@ android主板型号:
 | lock-amount   | int    |      18 | 设备上锁的数量   |
 | wireless      | int    |       0 | 无线网络连接方式 |
 | antenna       | int    |       0 | 天线类型         |
-| card-reader   | int    |       0 | 读卡器类型       |
-| speaker       | int    |       0 | 扬声器类型       |
+| card-reader   | int    |       0 | 读卡器型号       |
+| speaker       | int    |       0 | 扬声器型号       |
+| router-board  | int    |       0 | 路由板型号       |
+| sim-no        | int    |       0 | SIM 卡号         |
 
 #+begin_src nim :noweb-ref modify-device
   put "/devices/@mac":
     check_token(request):
       let data = parseJson(request.body)
-      if db.tryExec(sql"update devices set address = ?, android_board = ?, lock_board = ?, wireless = ?, antenna = ?, card_reader = ?, lock_amount = ? where mac = ?", data["address"], data["android-board"], data["lock-board"], data["wireless"], data["antenna"], data["card-reader"], data["lock-amount"], data["mac"]):
+      if db.tryExec(sql"update devices set address = ?, android_board = ?, lock_board = ?, wireless = ?, antenna = ?, card_reader = ?, lock_amount = ?, router_board = ?, sim_no = ? where mac = ?", data["address"], data["android-board"], data["lock-board"], data["wireless"], data["antenna"], data["card-reader"], data["lock-amount"], data["router-board"], data["sim-no"], data["mac"]):
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http500, "Database Error"
@@ -409,5 +417,7 @@ row2device 把数据库的结果集转化成 JsonNode。
       antenna = row[5]
       card_reader = row[6]
       amount = row[7]
-    result = %* { "mac": mac, "address": address, "android-board": android, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": amount}
+      router = row[8]
+      sim = row[9]
+    result = %* { "mac": mac, "address": address, "android-board": android, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": amount, "router-board": router, "sim-no": sim }
 #+end_src
