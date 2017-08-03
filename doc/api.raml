@@ -9,6 +9,8 @@ types:
   accounts: !include schema/accounts.json
   devices: !include schema/devices.json
   device: !include schema/device.json
+  upgrades: !include schema/upgrades.json
+  upgrade: !include schema/upgrade.json
 
 securitySchemes:
   auth-box:
@@ -92,3 +94,5 @@ traits:
 /accounts: !include account.raml
 
 /devices: !include device.raml
+
+/upgrades: !include upgrade.raml

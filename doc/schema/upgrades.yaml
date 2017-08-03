@@ -1,0 +1,21 @@
+---
+"$schema": http://json-schema.org/draft-04/schema
+title: 寄存柜 - Admin - upgrades
+description: 设备列表信息
+properties:
+  total:
+    description: 结果集总数
+    type: int
+  offset:
+    description: 当前结果在总结果集中的开始地址
+    type: int
+  data:
+    description: 升级信息列表
+    type: array
+    items:
+      $ref: /upgrade#
+    minItems: 0
+    uniqueItems: true
+type:
+- object
+id: upgrades

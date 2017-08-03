@@ -1,0 +1,28 @@
+---
+"$schema": http://json-schema.org/draft-04/schema
+title: 寄存柜 - Admin - upgrade
+description: 升级信息
+properties:
+  id:
+    description: 升级信息ID
+    example: 1
+    type: int
+  type:
+    description: 升级类型
+    enum: ["boxos", "supervisor"]
+    type: string
+  version:
+    description: 版本编号
+    example: 1
+    type: int
+  url:
+    description: 升级包索引文件下载链接
+    example: http://xxx.com/xxx
+    type: string
+  state:
+    description: 升级信息状态
+    enum: ["待测试", "测试失败", "待发布", "已发布"]
+    type: string
+type:
+- object
+id: upgrade

@@ -6,7 +6,7 @@ all: $(TARGET)
 %.json: %.yaml
 	yaml-to-json $< | json_reformat > $@
 
-$(TARGET): api.raml session.raml account.raml device.raml $(SHM)
+$(TARGET): api.raml session.raml account.raml device.raml upgrade.raml $(SHM)
 	raml2html -i api.raml -o $(TARGET)
 
 clean:
