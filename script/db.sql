@@ -15,6 +15,8 @@ CREATE TABLE "devices" (
   "wireless" int DEFAULT 0,
   "antenna" int DEFAULT 0,
   "card_reader" int DEFAULT 0,
-  "speaker" int DEFAULT 0
+  "speaker" int DEFAULT 0,
+  "router_board" int DEFAULT 0,
+  "sim_no" int DEFAULT 0
 );
 CREATE INDEX "devices_address_idx" ON "devices" USING "btree" ("address");
