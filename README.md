@@ -2,7 +2,7 @@
 
 寄存柜管理服务
 
-## Prerequest
+## 依赖
 
 1. linux
 2. nim + nimble
