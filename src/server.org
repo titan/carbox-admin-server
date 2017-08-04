@@ -34,6 +34,7 @@
     <<add-to-test>>
     <<remove-from-test>>
     <<list-upgrades>>
+    <<add-upgrade>>
 
   runforever()
 #+end_src
@@ -370,6 +371,28 @@ state 的可选范围包括：
         list_response(count, offset, upgrades)
 #+end_src
 ** 增加升级
+增加升级功能从请求 body 中解析 json，保存 upgrade 信息到数据库中，并在
+"upgrade.prerelease.${type}" hash 表中，以 "${system}-${lock}" 为主键保存下载
+URL 。
+
+代码中用变量 tipe 来升级信息的 type，是因为 "type" 是 nim 语言的关键字，这样可以
+避免编译器报错。
+#+begin_src nim :noweb-ref add-upgrade
+  post "/upgrades":
+    check_token(request):
+      let
+        data = parseJson(request.body)
+        tipe = data["type"].getStr
+        url = data["url"].getStr
+        version = data["version"].getNum
+        system = data["system-board"].getNum
+        lock = data["lock-board"].getNum
+      if db.tryExec(sql"insert into upgrade(type, system_board, lock_board, state, version, url) values(?, ?, ?, 1, ?, ?)", tipe, system, lock, version, url):
+        discard redis.hset(redisClient, "upgrade.prerelease.${tipe}", "${system}-${lock}", url)
+        resp Http200, @[("content-type", "application/json")], $data
+      else:
+        resp Http500, "Database Error"
+#+end_src
 ** 升级详情
 ** 修改升级
 ** 删除升级
