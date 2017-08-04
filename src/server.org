@@ -317,15 +317,23 @@ android主板型号:
 testset 中。
 
 #+begin_src nim :noweb-ref add-to-test
-
   put "/devices/@mac/test":
     check_token(request):
       discard redis.sadd(redisClient, "testset", @"mac")
       resp Http200, ""
-
 #+end_src
 
 ** 退出测试名单
+
+同加入测试名单，退出时也不检查 MAC 地址是否有效。
+
+#+begin_src nim :noweb-ref add-to-test
+  delete "/devices/@mac/test":
+    check_token(request):
+      discard redis.srem(redisClient, "testset", @"mac")
+      resp Http200, ""
+#+end_src
+
 * 升级管理
 ** 升级列表
 ** 增加升级
