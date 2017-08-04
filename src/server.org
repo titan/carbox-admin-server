@@ -30,6 +30,7 @@
     <<device-detail>>
     <<modify-device>>
     <<delete-device>>
+    <<add-to-test>>
 
   runforever()
 #+end_src
@@ -302,16 +303,28 @@ android主板型号:
 删除设备功能直接在数据库中删除设备信息。
 
 #+begin_src nim :noweb-ref delete-device
-
-    delete "/devices/@mac":
-      check_token(request):
-        if db.tryExec(sql"delete from devices where mac = ?", @"mac"):
-          resp Http200, ""
-        else:
-          resp Http500, "Database Error"
+  delete "/devices/@mac":
+    check_token(request):
+      if db.tryExec(sql"delete from devices where mac = ?", @"mac"):
+        resp Http200, ""
+      else:
+        resp Http500, "Database Error"
 #+end_src
 
 ** 加入测试名单
+
+加入测试名单时，不检查设备的 MAC 地址是否在数据库中有记录，直接加入到缓存的
+testset 中。
+
+#+begin_src nim :noweb-ref add-to-test
+
+  put "/devices/@mac/test":
+    check_token(request):
+      discard redis.sadd(redisClient, "testset", @"mac")
+      resp Http200, ""
+
+#+end_src
+
 ** 退出测试名单
 * 升级管理
 ** 升级列表
