@@ -35,6 +35,7 @@
     <<remove-from-test>>
     <<list-upgrades>>
     <<add-upgrade>>
+    <<upgrade-detail>>
 
   runforever()
 #+end_src
@@ -386,7 +387,7 @@ state 的可选范围包括：
         let countrow = db.getRow(sql"select count(id) from upgrades where type = ? and state = ?", @"type", @"state")
         var count: int = 0
         discard countrow[0].parseInt(count)
-        let rows = db.getAllRows(sql"select id, type, state, version, url from upgrades where type = ? and state = ? limit ?, ?", @"type", @"state", offset, limit)
+        let rows = db.getAllRows(sql"select id, type, state, system_board, lock_board, version, url from upgrades where type = ? and state = ? limit ?, ?", @"type", @"state", offset, limit)
         var upgrades: JsonNode = newJArray()
         for row in rows:
           upgrades.add(row2upgrade(row))
@@ -416,6 +417,19 @@ URL 。
         resp Http500, "Database Error"
 #+end_src
 ** 升级详情
+
+升级详情功能从数据库中获取升级详情返回给前端。如果升级详情不存在，就返回 404。
+
+#+begin_src nim :noweb-ref upgrade-detail
+  get "/upgrades/@id":
+    check_token(request):
+      let row = db.getRow(sql"select id, type, state, system_board, lock_board, version, url from upgrades where id = ?", @"id")
+      if row[0] != "":
+        let data = row2device(row)
+        resp Http200, @[("content-type", "application/json")], $data
+      else:
+        resp Http404, "Not found"
+#+end_src
 ** 修改升级
 ** 删除升级
 
@@ -540,15 +554,21 @@ row2upgrade 把数据库的结果集转化成 JsonNode。
     let
       idstr = row[0]
       tipe = row[1]
-      statestr = row[2]
-      versionstr = row[3]
-      url = row[4]
+      systemstr = row[2]
+      lockstr = row[3]
+      statestr = row[4]
+      versionstr = row[5]
+      url = row[6]
     var
       id: int = 0
+      system: int = 0
+      lock: int = 0
       state: int = 0
       version: int = 0
     discard idstr.parseInt(id)
+    discard systemstr.parseInt(system)
+    discard lockstr.parseInt(lock)
     discard statestr.parseInt(state)
     discard versionstr.parseInt(version)
-    result = %* { "id": id, "type": tipe, "state": state, "version": version, "url": url }
+    result = %* { "id": id, "type": tipe, "system": system, "lock": lock, "state": state, "version": version, "url": url }
 #+end_src
