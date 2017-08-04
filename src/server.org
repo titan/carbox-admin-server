@@ -457,6 +457,12 @@ URL 。
         version = data["version"].getNum
         url = data["url"].getStr
       if db.tryExec(sql"update upgrades set type = ?, state = ?, system_board = ?, lock_board = ?, version = ?, url = ? where id = ?", tipe, state, system, lock, version, url, @"id"):
+        discard redis.hdel(redisClient, "upgrade.prerelease.${tipe}", "${sytem}-${lock}")
+        discard redis.hdel(redisClient, "upgrade.release.${tipe}", "${sytem}-${lock}")
+        if state == 1 or state == 2:
+          discard redis.hset(redisClient, "upgrade.prerelease.${tipe}", "${sytem}-${lock}", url)
+        elif state == 15:
+          discard redis.hset(redisClient, "upgrade.release.${tipe}", "${sytem}-${lock}", url)
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http500, "Database Error"
