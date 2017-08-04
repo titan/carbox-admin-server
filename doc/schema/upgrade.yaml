@@ -11,6 +11,14 @@ properties:
     description: 升级类型
     enum: ["boxos", "supervisor"]
     type: string
+  system-board:
+    description: 系统主板型号
+    example: 1
+    type: int
+  lock-board:
+    description: 锁控板型号
+    example: 1
+    type: int
   version:
     description: 版本编号
     example: 1

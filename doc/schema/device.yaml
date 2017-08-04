@@ -11,8 +11,8 @@ properties:
     description: 设备放置的地址
     example: 东直门东方银座写字楼23D
     type: string
-  android-board:
-    description: android 板型号
+  system-board:
+    description: 系统主板型号
     example: 1
     type: int
   lock-board:

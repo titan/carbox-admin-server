@@ -2,7 +2,7 @@ displayName: 设备管理
 get:
   description: 设备列表
   securedBy: [ auth-box ]
-  is: [ secured, rate-limited, pageable, searchable: {description: "with valid searchable fields: mac, android-board, lock-board, wireless, antenna, card-reader, lock-amount", example: "[\"android-board\", \"1\", \"equal\"]"}, sortable: {fieldsList: "mac, android-board, lock-board, wireless, antenna, card-reader, lock-amount"} ]
+  is: [ secured, rate-limited, pageable, searchable: {description: "with valid searchable fields: mac, system-board, lock-board, wireless, antenna, card-reader, lock-amount", example: "[\"system-board\", \"1\", \"equal\"]"}, sortable: {fieldsList: "mac, system-board, lock-board, wireless, antenna, card-reader, lock-amount"} ]
   responses:
     200:
       body:

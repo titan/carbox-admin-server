@@ -53,8 +53,9 @@ post:
       修改升级信息
 
       在此可以将升级信息的状态改为 "测试失败", "待发布", "已发布"。
-      状态为"已发布"的升级信息在缓存的 key 是 "release.${type}.${version}"
-      其它状态升级信息在缓存的 key 是 "prerelease.${type}.${version}"
+      状态为"已发布"的升级信息保存在缓存中的 "upgrade.release.${type}" Hash Table
+      其它状态升级信息保存在缓存中的 "upgrade.prerelease.${type}" Hash Table
+      两个 Hash Table 中的 key 是 "${system-board}-${lock-board}"，value 是升级索引文件的 URL
     securedBy: [ auth-box ]
     is: [ secured, rate-limited ]
     body:
