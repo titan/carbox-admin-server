@@ -149,7 +149,7 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
           let countrow = db.getRow(sql"select count(mac) from devices")
           var count: int = 0
           discard countrow[0].parseInt(count)
-          let rows = db.getAllRows(sql"select mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no from devices limit ?, ?", offset, limit)
+          let rows = db.getAllRows(sql"select mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no from devices limit ?, ?", offset, limit)
           var devices: JsonNode = newJArray()
           for row in rows:
             devices.add(row2device(row))
@@ -183,19 +183,19 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
 
 登记设备把设备信息保存到数据库中。设备的信息包括：
 
-| name          | type   | default | note             |
-|---------------+--------+---------+------------------|
-| mac           | string |         | mac地址          |
-| address       | string |         | 设备安放地址     |
-| android-board | int    |       0 | android 主板型号 |
-| lock-board    | int    |       0 | 锁控板型号       |
-| lock-amount   | int    |      18 | 设备上锁的数量   |
-| wireless      | int    |       0 | 无线网络连接方式 |
-| antenna       | int    |       0 | 天线类型         |
-| card-reader   | int    |       0 | 读卡器类型       |
-| speaker       | int    |       0 | 扬声器类型       |
+| name         | type   | default | note             |
+|--------------+--------+---------+------------------|
+| mac          | string |         | mac地址          |
+| address      | string |         | 设备安放地址     |
+| system-board | int    |       0 | system 主板型号  |
+| lock-board   | int    |       0 | 锁控板型号       |
+| lock-amount  | int    |      18 | 设备上锁的数量   |
+| wireless     | int    |       0 | 无线网络连接方式 |
+| antenna      | int    |       0 | 天线类型         |
+| card-reader  | int    |       0 | 读卡器类型       |
+| speaker      | int    |       0 | 扬声器类型       |
 
-android主板型号:
+system主板型号:
 
 | type | name    |
 |------+---------|
@@ -255,8 +255,19 @@ android主板型号:
 #+begin_src nim :noweb-ref register-device
   post "/devices":
     check_token(request):
-      let data = parseJson(request.body)
-      if db.tryExec(sql"insert into devices(mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", data["mac"], data["address"], data["android-board"], data["lock-board"], data["wireless"], data["antenna"], data["card-reader"], data["lock-amount"], data["router-board"], data["sim-no"]):
+      let
+        data = parseJson(request.body)
+        mac = data["mac"].getStr
+        address = data["address"].getStr
+        system = data["system-board"].getNum
+        lock = data["lock-board"].getNum
+        wireless = data["wireless"].getNum
+        antenna = data["antenna"].getNum
+        card_reader = data["card-reader"].getNum
+        lock_amount = data["lock-amount"].getNum
+        router = data["router-board"].getNum
+        sim_no = data["sim-no"].getStr
+      if db.tryExec(sql"insert into devices(mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", mac, address, system, lock, wireless, antenna, card_reader, lock_amount, router, sim_no):
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http500, "Database Error"
@@ -268,7 +279,7 @@ android主板型号:
 #+begin_src nim :noweb-ref device-detail
   get "/devices/@mac":
     check_token(request):
-      let row = db.getRow(sql"select mac, address, android_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no from devices where mac = ?", @"mac")
+      let row = db.getRow(sql"select mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no from devices where mac = ?", @"mac")
       if row[0] != "":
         let data = row2device(row)
         resp Http200, @[("content-type", "application/json")], $data
@@ -280,24 +291,35 @@ android主板型号:
 
 修改配置需要如下参数。
 
-| name          | type   | default | note             |
-|---------------+--------+---------+------------------|
-| address       | string |         | 设备安放地址     |
-| android-board | int    |       0 | android 主板型号 |
-| lock-board    | int    |       0 | 锁控板型号       |
-| lock-amount   | int    |      18 | 设备上锁的数量   |
-| wireless      | int    |       0 | 无线网络连接方式 |
-| antenna       | int    |       0 | 天线类型         |
-| card-reader   | int    |       0 | 读卡器型号       |
-| speaker       | int    |       0 | 扬声器型号       |
-| router-board  | int    |       0 | 路由板型号       |
-| sim-no        | int    |       0 | SIM 卡号         |
+| name         | type   | default | note             |
+|--------------+--------+---------+------------------|
+| address      | string |         | 设备安放地址     |
+| system-board | int    |       0 | system 主板型号  |
+| lock-board   | int    |       0 | 锁控板型号       |
+| lock-amount  | int    |      18 | 设备上锁的数量   |
+| wireless     | int    |       0 | 无线网络连接方式 |
+| antenna      | int    |       0 | 天线类型         |
+| card-reader  | int    |       0 | 读卡器型号       |
+| speaker      | int    |       0 | 扬声器型号       |
+| router-board | int    |       0 | 路由板型号       |
+| sim-no       | int    |       0 | SIM 卡号         |
 
 #+begin_src nim :noweb-ref modify-device
   put "/devices/@mac":
     check_token(request):
-      let data = parseJson(request.body)
-      if db.tryExec(sql"update devices set address = ?, android_board = ?, lock_board = ?, wireless = ?, antenna = ?, card_reader = ?, lock_amount = ?, router_board = ?, sim_no = ? where mac = ?", data["address"], data["android-board"], data["lock-board"], data["wireless"], data["antenna"], data["card-reader"], data["lock-amount"], data["router-board"], data["sim-no"], data["mac"]):
+      let
+        data = parseJson(request.body)
+        mac = data["mac"].getStr
+        address = data["address"].getStr
+        system = data["system-board"].getNum
+        lock = data["lock-board"].getNum
+        wireless = data["wireless"].getNum
+        antenna = data["antenna"].getNum
+        card_reader = data["card-reader"].getNum
+        lock_amount = data["lock-amount"].getNum
+        router = data["router-board"].getNum
+        sim_no = data["sim-no"].getStr
+      if db.tryExec(sql"update devices set address = ?, system_board = ?, lock_board = ?, wireless = ?, antenna = ?, card_reader = ?, lock_amount = ?, router_board = ?, sim_no = ? where mac = ?", address, system, lock, wireless, antenna, card_reader, lock_amount, router, sim_no, mac):
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http500, "Database Error"
@@ -497,7 +519,7 @@ row2device 把数据库的结果集转化成 JsonNode。
     let
       mac = row[0]
       address = row[1]
-      android = row[2]
+      system = row[2]
       lock = row[3]
       wireless = row[4]
       antenna = row[5]
@@ -505,7 +527,7 @@ row2device 把数据库的结果集转化成 JsonNode。
       amount = row[7]
       router = row[8]
       sim = row[9]
-    result = %* { "mac": mac, "address": address, "android-board": android, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": amount, "router-board": router, "sim-no": sim }
+    result = %* { "mac": mac, "address": address, "system-board": system, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": amount, "router-board": router, "sim-no": sim }
 #+end_src
 
 ** row2upgrade

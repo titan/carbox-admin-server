@@ -9,7 +9,7 @@ CREATE UNIQUE INDEX "accounts_account_unique_idx" ON "accounts" USING "btree" ("
 CREATE TABLE "devices" (
   "mac" char(17) PRIMARY KEY,
   "address" varchar(128) NOT NULL,
-  "android_board" int DEFAULT 0,
+  "system_board" int DEFAULT 0,
   "lock_board" int DEFAULT 0,
   "lock_amount" int DEFAULT 0,
   "wireless" int DEFAULT 0,
