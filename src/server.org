@@ -31,6 +31,7 @@
     <<modify-device>>
     <<delete-device>>
     <<add-to-test>>
+    <<remove-from-test>>
 
   runforever()
 #+end_src
@@ -327,7 +328,7 @@ testset 中。
 
 同加入测试名单，退出时也不检查 MAC 地址是否有效。
 
-#+begin_src nim :noweb-ref add-to-test
+#+begin_src nim :noweb-ref remove-from-test
   delete "/devices/@mac/test":
     check_token(request):
       discard redis.srem(redisClient, "testset", @"mac")
