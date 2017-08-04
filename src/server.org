@@ -36,6 +36,7 @@
     <<list-upgrades>>
     <<add-upgrade>>
     <<upgrade-detail>>
+    <<modify-upgrade>>
 
   runforever()
 #+end_src
@@ -431,6 +432,34 @@ URL 。
         resp Http404, "Not found"
 #+end_src
 ** 修改升级
+
+修改升级信息需要如下参数。
+
+| name         | type   | default | note                 |
+|--------------+--------+---------+----------------------|
+| type         | string |   boxos | 升级类型             |
+| state        | int    |       0 | 升级状态             |
+| system-board | int    |       0 | system 主板型号      |
+| lock-board   | int    |       0 | 锁控板型号           |
+| version      | int    |      18 | 升级版本             |
+| url          | string |         | 升级索引文件链接地址 |
+
+#+begin_src nim :noweb-ref modify-upgrade
+  put "/upgrades/@id":
+    check_token(request):
+      let
+        data = parseJson(request.body)
+        tipe = data["type"].getStr
+        state = data["state"].getNum
+        system = data["system-board"].getNum
+        lock = data["lock-board"].getNum
+        version = data["version"].getNum
+        url = data["url"].getStr
+      if db.tryExec(sql"update upgrades set type = ?, state = ?, system_board = ?, lock_board = ?, version = ?, url = ? where id = ?", tipe, state, system, lock, version, url, @"id"):
+        resp Http200, @[("content-type", "application/json")], $data
+      else:
+        resp Http500, "Database Error"
+#+end_src
 ** 删除升级
 
 * 辅助函数
