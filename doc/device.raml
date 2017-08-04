@@ -71,3 +71,16 @@ options:
           application/json:
             type: device
             example: !include example/device.json
+
+  /test:
+    put:
+      description: 加入测试名单
+      securedBy: [ auth-box ]
+      is: [ secured, rate-limited ]
+      responses:
+        200:
+          description: 添加成功
+    delete:
+      description: 退出测试名单
+      securedBy: [ auth-box ]
+      is: [ secured, rate-limited, deleteable ]
