@@ -37,6 +37,7 @@
     <<add-upgrade>>
     <<upgrade-detail>>
     <<modify-upgrade>>
+    <<delete-upgrade>>
 
   runforever()
 #+end_src
@@ -461,6 +462,30 @@ URL 。
         resp Http500, "Database Error"
 #+end_src
 ** 删除升级
+
+删除升级信息功能需要同时删除缓存中的信息和数据库中的信息。缓存中的信息依赖于
+type, system-board 和 lock-board。这三个变量只能从数据库中获取。因此先从数据库中
+读取数据，然后再删除数据同时删除缓存信息。
+
+#+begin_src nim :noweb-ref delete-upgrade
+  delete "/upgrades/@id":
+    check_token(request):
+      let row = db.getRow(sql"select id, type, system_board, lock_board from upgrades where id = ?", @"id")
+      if row[0] != "":
+        let
+          tipe = row[1]
+          system = row[2]
+          lock = row[3]
+        if db.tryExec(sql"delete from upgrades where id = ?", @"id"):
+          discard redis.hdel(redisClient, "upgrade.release.${tipe}", "${system}-${lock}")
+          discard redis.hdel(redisClient, "upgrade.prerelease.${tipe}", "${system}-${lock}")
+          resp Http200, ""
+        else:
+          resp Http500, "Database Error"
+      else:
+        resp Http404, "Not Found"
+#+end_src
+
 
 * 辅助函数
 
