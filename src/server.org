@@ -79,8 +79,8 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
           refresh_token = session["refresh-token"].getStr
           access_token = session["access-token"].getStr
           value = %* { "uid": uid, "refresh": refresh_token }
-        redisClient.setk("session.access." & access_token, $value)
-        redisClient.setk("session.refresh." & refresh_token, uid)
+        discard redisClient.setex("session.access." & access_token, 3600, $value)
+        discard redisClient.setex("session.refresh." & refresh_token, 3600 * 24 * 30, uid)
         resp Http200, @[("content-type", "application/json")], $session
       else:
         resp Http404, "帐号或密码错误"
