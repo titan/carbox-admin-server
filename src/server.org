@@ -13,6 +13,7 @@
   <<randstr>>
   <<generate-session>>
   <<row2device>>
+  <<row2upgrade>>
 
   <<check-token>>
   <<pageable>>
@@ -32,6 +33,7 @@
     <<delete-device>>
     <<add-to-test>>
     <<remove-from-test>>
+    <<list-upgrades>>
 
   runforever()
 #+end_src
@@ -337,6 +339,36 @@ testset 中。
 
 * 升级管理
 ** 升级列表
+
+升级列表功能要求前端必须提供 type 和 state 才能获取到升级信息列表。
+
+| name  | type   | default | note                  |
+|-------+--------+---------+-----------------------|
+| type  | string | boxos   | boxos 或者 supervisor |
+| state | int    | 1       |                       |
+
+state 的可选范围包括：
+
+| state | meaning |
+|-------+---------|
+|     1 | 待测试  |
+|     2 | 待发布  |
+|    15 | 已发布  |
+|    -1 | 已取消  |
+
+#+begin_src nim :noweb-ref list-upgrades
+  get "/upgrades":
+    check_token(request):
+      pageable:
+        let countrow = db.getRow(sql"select count(id) from upgrades where type = ? and state = ?", @"type", @"state")
+        var count: int = 0
+        discard countrow[0].parseInt(count)
+        let rows = db.getAllRows(sql"select id, type, state, version, url from upgrades where type = ? and state = ? limit ?, ?", @"type", @"state", offset, limit)
+        var upgrades: JsonNode = newJArray()
+        for row in rows:
+          upgrades.add(row2upgrade(row))
+        list_response(count, offset, upgrades)
+#+end_src
 ** 增加升级
 ** 升级详情
 ** 修改升级
@@ -451,4 +483,27 @@ row2device 把数据库的结果集转化成 JsonNode。
       router = row[8]
       sim = row[9]
     result = %* { "mac": mac, "address": address, "android-board": android, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": amount, "router-board": router, "sim-no": sim }
+#+end_src
+
+** row2upgrade
+
+row2upgrade 把数据库的结果集转化成 JsonNode。
+
+#+begin_src nim :noweb-ref row2upgrade
+
+  proc row2upgrade(row: seq[string]): JsonNode =
+    let
+      idstr = row[0]
+      tipe = row[1]
+      statestr = row[2]
+      versionstr = row[3]
+      url = row[4]
+    var
+      id: int = 0
+      state: int = 0
+      version: int = 0
+    discard idstr.parseInt(id)
+    discard statestr.parseInt(state)
+    discard versionstr.parseInt(version)
+    result = %* { "id": id, "type": tipe, "state": state, "version": version, "url": url }
 #+end_src
