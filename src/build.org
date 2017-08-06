@@ -16,11 +16,13 @@
   requires "jester >= 0.1.1", "redis >= 0.2.0"
 #+end_src
 
+
 * 发行脚本
 #+begin_src text :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/Dockerfile
   FROM hive/box-base:3.6
 
   COPY admin_api_server /admin-api-server
+  COPY wait-for /wait-for
 
   CMD trap exit TERM; /admin-api-server & wait
 #+end_src
@@ -37,9 +39,93 @@
   hive/<<name>>:<<app-version>>
 #+end_src
 
+#+begin_src shell :exports code :noweb no :mkdirp yes :tangle /dev/shm/admin-server/wait-for
+#!/bin/sh
+
+TIMEOUT=15
+QUIET=0
+
+echoerr() {
+  if [ "$QUIET" -ne 1 ]; then printf "%s\n" "$*" 1>&2; fi
+}
+
+usage() {
+  exitcode="$1"
+  cat << USAGE >&2
+Usage:
+  $cmdname host:port [-t timeout] [-- command args]
+  -q | --quiet                        Do not output any status messages
+  -t TIMEOUT | --timeout=timeout      Timeout in seconds, zero for no timeout
+  -- COMMAND ARGS                     Execute command with args after the test finishes
+USAGE
+  exit "$exitcode"
+}
+
+wait_for() {
+  command="$*"
+  for i in `seq $TIMEOUT` ; do
+    nc -z "$HOST" "$PORT" > /dev/null 2>&1
+
+    result=$?
+    if [ $result -eq 0 ] ; then
+      if [ -n "$command" ] ; then
+        exec $command
+      fi
+      exit 0
+    fi
+    sleep 1
+  done
+  echo "Operation timed out" >&2
+  exit 1
+}
+
+while [ $# -gt 0 ]
+do
+  case "$1" in
+    *:* )
+    HOST=$(printf "%s\n" "$1"| cut -d : -f 1)
+    PORT=$(printf "%s\n" "$1"| cut -d : -f 2)
+    shift 1
+    ;;
+    -q | --quiet)
+    QUIET=1
+    shift 1
+    ;;
+    -t)
+    TIMEOUT="$2"
+    if [ "$TIMEOUT" = "" ]; then break; fi
+    shift 2
+    ;;
+    --timeout=*)
+    TIMEOUT="${1#*=}"
+    shift 1
+    ;;
+    --)
+    shift
+    break
+    ;;
+    --help)
+    usage 0
+    ;;
+    *)
+    echoerr "Unknown argument: $1"
+    usage 1
+    ;;
+  esac
+done
+
+if [ "$HOST" = "" -o "$PORT" = "" ]; then
+  echoerr "Error: you need to provide a host and port to test."
+  usage 2
+fi
+
+wait_for "$@"
+#+end_src
+
 ** 制作镜像
 #+begin_src shell :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/build-image.sh
   #! /bin/sh
+  chmod 755 wait-for
   docker build -t <<tag>> .
 #+end_src
 
@@ -53,8 +139,6 @@
 ** 清除镜像
 #+begin_src shell :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/clean-image.sh
   #! /bin/sh
-  docker stop <<name>>
-  docker rm <<name>>
   docker rmi <<tag>>
 #+end_src
 
@@ -62,31 +146,27 @@
 #+begin_src yaml :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/docker-compose.yaml
   version: '3'
   services:
-    server:
+    adminer:
       image: <<tag>>
       ports:
         - "8888:8888"
-      volumes:
-        - "/dev/shm/:/share"
-      command: /bin/sh
-      tty: true
       depends_on:
         - cache
         - db
-    cache:
       volumes:
-        - "/dev/shm/:/data"
+        - "./cachedata:/data"
+      command: sh -c '/wait-for db:5432 -- /admin-api-server'
+    cache:
       command: redis-server --appendonly yes
       image: redis:4-alpine
     db:
       image: postgres:10-alpine
-      volumes:
-        - "/dev/shm/:/share"
-      ports:
-        - "5432:5432"
       environment:
         POSTGRES_USER: box
         POSTGRES_DB: box
-        POSTGRES_PASSWORD: 123456
+        POSTGRES_PASSWORD: box2017
         LANG: zh_CN.utf8
+      volumes:
+        - "./initdb.d:/docker-entrypoint-initdb.d"
+        - "./pgdata:/var/lib/postgresql/data"
 #+end_src
