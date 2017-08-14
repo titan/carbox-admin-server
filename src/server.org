@@ -218,13 +218,8 @@ system主板型号:
 |------+----------|
 |    0 | 有线连接 |
 |    1 | WIFI     |
-|    2 | 移动3G   |
-|    3 | 移动4G   |
-|    4 | 联通3G   |
-|    5 | 联通4G   |
-|    6 | 电信3G   |
-|    7 | 电信4G   |
-|    8 | 全网通   |
+|    2 | 3G       |
+|    3 | 4G       |
 
 天线类型：
 
@@ -269,7 +264,7 @@ system主板型号:
         card_reader = data["card-reader"].getNum
         lock_amount = data["lock-amount"].getNum
         router = data["router-board"].getNum
-        sim_no = data["sim-no"].getStr
+        sim_no = data["sim-no"].getNum
       if db.tryExec(sql"insert into devices(mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", mac, address, system, lock, wireless, antenna, card_reader, lock_amount, router, sim_no):
         resp Http200, @[("content-type", "application/json")], $data
       else:
