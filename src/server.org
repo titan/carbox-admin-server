@@ -152,7 +152,7 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
           let countrow = db.getRow(sql"select count(mac) from devices")
           var count: int = 0
           discard countrow[0].parseInt(count)
-          let rows = db.getAllRows(sql"select mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no from devices limit ?, ?", offset, limit)
+          let rows = db.getAllRows(sql"select mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no from devices limit ? offset ?", limit, offset)
           var devices: JsonNode = newJArray()
           for row in rows:
             devices.add(row2device(row))
@@ -384,7 +384,7 @@ state 的可选范围包括：
         let countrow = db.getRow(sql"select count(id) from upgrades where type = ? and state = ?", @"type", @"state")
         var count: int = 0
         discard countrow[0].parseInt(count)
-        let rows = db.getAllRows(sql"select id, type, state, system_board, lock_board, version, url from upgrades where type = ? and state = ? limit ?, ?", @"type", @"state", offset, limit)
+        let rows = db.getAllRows(sql"select id, type, state, system_board, lock_board, version, url from upgrades where type = ? and state = ? limit ? offset ?", @"type", @"state", limit, offset)
         var upgrades: JsonNode = newJArray()
         for row in rows:
           upgrades.add(row2upgrade(row))
