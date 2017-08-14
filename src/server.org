@@ -588,14 +588,31 @@ row2device 把数据库的结果集转化成 JsonNode。
     let
       mac = row[0]
       address = row[1]
-      system = row[2]
-      lock = row[3]
-      wireless = row[4]
-      antenna = row[5]
-      card_reader = row[6]
-      amount = row[7]
-      router = row[8]
-      sim = row[9]
+      system_str = row[2]
+      lock_str = row[3]
+      wireless_str = row[4]
+      antenna_str = row[5]
+      card_reader_str = row[6]
+      amount_str = row[7]
+      router_str = row[8]
+      sim_str = row[9]
+    var
+      system: int = 0
+      lock: int = 0
+      wireless: int = 0
+      antenna: int = 0
+      card_reader: int = 0
+      amount: int = 0
+      router: int = 0
+      sim: int = 0
+    discard system_str.parseInt(system)
+    discard lock_str.parseInt(lock)
+    discard wireless_str.parseInt(wireless)
+    discard antenna_str.parseInt(antenna)
+    discard card_reader_str.parseInt(card_reader)
+    discard amount_str.parseInt(amount)
+    discard router_str.parseInt(router)
+    discard sim_str.parseInt(sim)
     result = %* { "mac": mac, "address": address, "system-board": system, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": amount, "router-board": router, "sim-no": sim }
 #+end_src
 
