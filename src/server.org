@@ -2,7 +2,7 @@
 * 程序框架
 #+begin_src nim :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/src/admin_api_server.nim
   import jester, asyncdispatch, json, db_postgres as pg, random, redis as redis
-  import parseutils
+  import parseutils, strutils
 
   settings:
     port = 8888.Port
@@ -174,7 +174,7 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
           var data: JsonNode = newJArray()
           for idx in offset..(min(len(keys), offset + limit) - 1):
             let
-              pin = keys[idx]
+              pin = keys[idx].split('.')[1]
               mac = redis.get(redisClient, pin)
             data.add(%* { "pin": pin, "mac": mac })
           list_response(len(keys), offset, data)
@@ -272,13 +272,15 @@ system主板型号:
 #+end_src
 ** 设备信息
 
-设备信息功能从数据库中获取设备详情返回给前端。如果设备不存在，就返回 404。
+设备信息功能从数据库中获取设备详情返回给前端。如果设备不存在，就返回 404。如果没
+有结果，data_postgres 模块的 getRow 方法返回一个元素全部为 nil 的数组，数组长度
+对应 SELECT 语句的 fields 个数。
 
 #+begin_src nim :noweb-ref device-detail
   get "/devices/@mac":
     check_token(request):
       let row = db.getRow(sql"select mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no from devices where mac = ?", @"mac")
-      if row[0] != "":
+      if row[0] != nil:
         let data = row2device(row)
         resp Http200, @[("content-type", "application/json")], $data
       else:
@@ -421,8 +423,8 @@ URL 。
   get "/upgrades/@id":
     check_token(request):
       let row = db.getRow(sql"select id, type, state, system_board, lock_board, version, url from upgrades where id = ?", @"id")
-      if row[0] != "":
-        let data = row2device(row)
+      if row[0] != nil:
+        let data = row2upgrade(row)
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http404, "Not found"
@@ -472,7 +474,7 @@ type, system-board 和 lock-board。这三个变量只能从数据库中获取�
   delete "/upgrades/@id":
     check_token(request):
       let row = db.getRow(sql"select id, type, system_board, lock_board from upgrades where id = ?", @"id")
-      if row[0] != "":
+      if row[0] != nil:
         let
           tipe = row[1]
           system = row[2]

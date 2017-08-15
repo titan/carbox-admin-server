@@ -2,7 +2,7 @@
 #+begin_src nimscript :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/admin_api_server.nimble
   # Package
 
-  version       = "0.1.5"
+  version       = "0.1.9"
   author        = "Titan"
   description   = "Restful server for box"
   license       = "MIT"
@@ -32,7 +32,7 @@
 #+end_src
 
 #+begin_src text :noweb-ref app-version
-  0.1.7
+  0.1.9
 #+end_src
 
 #+begin_src text :noweb-ref tag
