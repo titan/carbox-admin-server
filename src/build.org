@@ -2,7 +2,7 @@
 #+begin_src nimscript :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/admin_api_server.nimble
   # Package
 
-  version       = "0.1.9"
+  version       = "0.1.10"
   author        = "Titan"
   description   = "Restful server for box"
   license       = "MIT"
@@ -15,7 +15,6 @@
   requires "nim >= 0.17.0"
   requires "jester >= 0.1.1", "redis >= 0.2.0"
 #+end_src
-
 
 * 发行脚本
 #+begin_src text :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/Dockerfile
@@ -32,7 +31,7 @@
 #+end_src
 
 #+begin_src text :noweb-ref app-version
-  0.1.9
+  0.1.10
 #+end_src
 
 #+begin_src text :noweb-ref tag

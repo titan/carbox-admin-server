@@ -142,8 +142,8 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
             var data: JsonNode = newJArray()
             for idx in offset..(min(len(keys), offset + limit) - 1):
               let
-                pin = keys[idx]
-                mac = redis.get(redisClient, pin)
+                pin = keys[idx].split('.')[1]
+                mac = redis.get(redisClient, keys[idx])
               data.add(%* { "pin": pin, "mac": mac })
             list_response(len(keys), offset, data)
           else:
@@ -175,7 +175,7 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
           for idx in offset..(min(len(keys), offset + limit) - 1):
             let
               pin = keys[idx].split('.')[1]
-              mac = redis.get(redisClient, pin)
+              mac = redis.get(redisClient, keys[idx])
             data.add(%* { "pin": pin, "mac": mac })
           list_response(len(keys), offset, data)
         else:
@@ -488,7 +488,6 @@ type, system-board 和 lock-board。这三个变量只能从数据库中获取�
       else:
         resp Http404, "Not Found"
 #+end_src
-
 
 * 辅助函数
 
