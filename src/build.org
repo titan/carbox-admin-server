@@ -1,8 +1,13 @@
 * 编译设置
+
+#+begin_src text :noweb-ref app-version
+  0.1.11
+#+end_src
+
 #+begin_src nimscript :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/admin_api_server.nimble
   # Package
 
-  version       = "0.1.10"
+  version       = "<<app-version>>"
   author        = "Titan"
   description   = "Restful server for box"
   license       = "MIT"
@@ -18,7 +23,7 @@
 
 * 发行脚本
 #+begin_src text :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/Dockerfile
-  FROM hive/box-base:3.6
+  FROM hive/nim-base:3.6
 
   COPY admin_api_server /admin-api-server
   COPY wait-for /wait-for
@@ -28,10 +33,6 @@
 
 #+begin_src text :noweb-ref name
   admin-server
-#+end_src
-
-#+begin_src text :noweb-ref app-version
-  0.1.10
 #+end_src
 
 #+begin_src text :noweb-ref tag
@@ -152,12 +153,12 @@ wait_for "$@"
       depends_on:
         - cache
         - db
-      volumes:
-        - "./cachedata:/data"
       command: sh -c '/wait-for db:5432 -- /admin-api-server'
     cache:
       command: redis-server --appendonly yes
       image: redis:4-alpine
+      volumes:
+        - "./cachedata:/data"
     db:
       image: postgres:10-alpine
       environment:

@@ -383,10 +383,13 @@ state 的可选范围包括：
   get "/upgrades":
     check_token(request):
       pageable:
-        let countrow = db.getRow(sql"select count(id) from upgrades where type = ? and state = ?", @"type", @"state")
+        var state: int = 1
+        if @"state" != "":
+          discard @"state".parseInt(state)
+        let countrow = db.getRow(sql"select count(id) from upgrades where state = ?", state)
         var count: int = 0
         discard countrow[0].parseInt(count)
-        let rows = db.getAllRows(sql"select id, type, state, system_board, lock_board, version, url from upgrades where type = ? and state = ? limit ? offset ?", @"type", @"state", limit, offset)
+        let rows = db.getAllRows(sql"select id, type, state, system_board, lock_board, version, url from upgrades where state = ? limit ? offset ?", state, limit, offset)
         var upgrades: JsonNode = newJArray()
         for row in rows:
           upgrades.add(row2upgrade(row))

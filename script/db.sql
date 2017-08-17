@@ -20,3 +20,13 @@ CREATE TABLE "devices" (
   "sim_no" int DEFAULT 0
 );
 CREATE INDEX "devices_address_idx" ON "devices" USING "btree" ("address");
+
+CREATE TABLE "upgrades" (
+  "id" serial PRIMARY KEY,
+  "state" int DEFAULT 0,
+  "type" varchar(16) NOT NULL,
+  "version" int DEFAULT 0,
+  "system_board" int DEFAULT 0,
+  "lock_board" int DEFAULT 0,
+  "url" varchar(1024) NOT NULL
+);
