@@ -1,7 +1,7 @@
 * 编译设置
 
 #+begin_src text :noweb-ref app-version
-  0.1.11
+  0.1.12
 #+end_src
 
 #+begin_src nimscript :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/admin_api_server.nimble

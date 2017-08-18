@@ -412,7 +412,7 @@ URL 。
         version = data["version"].getNum
         system = data["system-board"].getNum
         lock = data["lock-board"].getNum
-      if db.tryExec(sql"insert into upgrade(type, system_board, lock_board, state, version, url) values(?, ?, ?, 1, ?, ?)", tipe, system, lock, version, url):
+      if db.tryExec(sql"insert into upgrades(type, system_board, lock_board, state, version, url) values(?, ?, ?, 1, ?, ?)", tipe, system, lock, version, url):
         discard redis.hset(redisClient, "upgrade.prerelease.${tipe}", "${system}-${lock}", url)
         resp Http200, @[("content-type", "application/json")], $data
       else:
