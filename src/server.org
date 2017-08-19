@@ -646,5 +646,5 @@ row2upgrade 把数据库的结果集转化成 JsonNode。
     discard lockstr.parseInt(lock)
     discard statestr.parseInt(state)
     discard versionstr.parseInt(version)
-    result = %* { "id": id, "type": tipe, "system": system, "lock": lock, "state": state, "version": version, "url": url }
+    result = %* { "id": id, "type": tipe, "system-board": system, "lock-board": lock, "state": state, "version": version, "url": url }
 #+end_src
