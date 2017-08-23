@@ -413,7 +413,7 @@ URL 。
         system = data["system-board"].getNum
         lock = data["lock-board"].getNum
       if db.tryExec(sql"insert into upgrades(type, system_board, lock_board, state, version, url) values(?, ?, ?, 1, ?, ?)", tipe, system, lock, version, url):
-        discard redis.hset(redisClient, "upgrade.prerelease.${tipe}", "${system}-${lock}", url)
+        discard redis.hset(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock, url)
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http500, "Database Error"
@@ -445,6 +445,10 @@ URL 。
 | version      | int    |      18 | 升级版本             |
 | url          | string |         | 升级索引文件链接地址 |
 
+当升级的状态变为 1 或 2 时，需要把升级信息同步到 prerelease 缓存上。此时，只有在
+测试名单中的设备能获取到升级通知。当升级状态变为 15 时，需要把升级信息同步到
+release。此后，所有的设备都会得到升级通知。
+
 #+begin_src nim :noweb-ref modify-upgrade
   put "/upgrades/@id":
     check_token(request):
@@ -457,12 +461,12 @@ URL 。
         version = data["version"].getNum
         url = data["url"].getStr
       if db.tryExec(sql"update upgrades set type = ?, state = ?, system_board = ?, lock_board = ?, version = ?, url = ? where id = ?", tipe, state, system, lock, version, url, @"id"):
-        discard redis.hdel(redisClient, "upgrade.prerelease.${tipe}", "${sytem}-${lock}")
-        discard redis.hdel(redisClient, "upgrade.release.${tipe}", "${sytem}-${lock}")
+        discard redis.hdel(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock)
+        discard redis.hdel(redisClient, "upgrade.release." & tipe, $system & "-" & $lock)
         if state == 1 or state == 2:
-          discard redis.hset(redisClient, "upgrade.prerelease.${tipe}", "${sytem}-${lock}", url)
+          discard redis.hset(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock, url)
         elif state == 15:
-          discard redis.hset(redisClient, "upgrade.release.${tipe}", "${sytem}-${lock}", url)
+          discard redis.hset(redisClient, "upgrade.release." & tipe, $system & "-" & $lock, url)
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http500, "Database Error"
@@ -483,8 +487,8 @@ type, system-board 和 lock-board。这三个变量只能从数据库中获取�
           system = row[2]
           lock = row[3]
         if db.tryExec(sql"delete from upgrades where id = ?", @"id"):
-          discard redis.hdel(redisClient, "upgrade.release.${tipe}", "${system}-${lock}")
-          discard redis.hdel(redisClient, "upgrade.prerelease.${tipe}", "${system}-${lock}")
+          discard redis.hdel(redisClient, "upgrade.release." & tipe, $system & "-" & $lock)
+          discard redis.hdel(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock)
           resp Http200, ""
         else:
           resp Http500, "Database Error"
