@@ -3,5 +3,6 @@ type: boxos
 system-board: 1
 lock-board: 1
 version: 1
+constraint: 0
 url: http://127.0.0.1/a
 state: 已发布
