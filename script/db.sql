@@ -26,6 +26,8 @@ CREATE TABLE "upgrades" (
   "state" int DEFAULT 0,
   "type" varchar(16) NOT NULL,
   "version" int DEFAULT 0,
+  "constraint" int DEFAULT 0,
+  "tag" int DEFAULT 0,
   "system_board" int DEFAULT 0,
   "lock_board" int DEFAULT 0,
   "url" varchar(1024) NOT NULL
