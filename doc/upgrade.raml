@@ -68,3 +68,16 @@ post:
           application/json:
             type: upgrade
             example: !include example/upgrade.json
+
+/stages:
+  /latest:
+    get:
+      description: 获取最新 stage 内的所有升级信息
+      securedBy: [ auth-box ]
+      is: [ secured, rate-limited, pageable ]
+      responses:
+        200:
+          body:
+            application/json:
+              type: upgrades
+              example: !include example/upgrades.json
