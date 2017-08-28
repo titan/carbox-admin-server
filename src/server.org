@@ -363,12 +363,11 @@ testset 中。
 * 升级管理
 ** 升级列表
 
-升级列表功能要求前端必须提供 type 和 state 才能获取到升级信息列表。
+升级列表功能要求前端必须提供 state 才能获取到升级信息列表。
 
-| name  | type   | default | note                  |
-|-------+--------+---------+-----------------------|
-| type  | string | boxos   | boxos 或者 supervisor |
-| state | int    | 1       |                       |
+| name  | type | default | note |
+|-------+------+---------+------|
+| state | int  |       1 |      |
 
 state 的可选范围包括：
 
@@ -389,7 +388,8 @@ state 的可选范围包括：
         let countrow = db.getRow(sql"select count(id) from upgrades where state = ?", state)
         var count: int = 0
         discard countrow[0].parseInt(count)
-        let rows = db.getAllRows(sql"select id, type, state, system_board, lock_board, version, url from upgrades where state = ? limit ? offset ?", state, limit, offset)
+        let query = "select id, type, state, system_board, lock_board, version, url, \"constraint\", stage from upgrades where state = ? limit ? offset ?"
+        let rows = db.getAllRows(sql(query), state, limit, offset)
         var upgrades: JsonNode = newJArray()
         for row in rows:
           upgrades.add(row2upgrade(row))
@@ -397,11 +397,21 @@ state 的可选范围包括：
 #+end_src
 ** 增加升级
 增加升级功能从请求 body 中解析 json，保存 upgrade 信息到数据库中，并在
-"upgrade.prerelease.${type}" hash 表中，以 "${system}-${lock}" 为主键保存下载
-URL 。
+"upgrade.prerelease.${type}" hash 表中，以 "${system}-${lock}-${old-version}" 为
+主键保存下载URL 。
 
 代码中用变量 tipe 来升级信息的 type，是因为 "type" 是 nim 语言的关键字，这样可以
 避免编译器报错。
+
+stage 是里程碑式的概念，用来表示一个批次的升级信息。在同一个批次中，任何一个已发
+布版本的升级都可以升级到最新版本。不同批次之间，老批次的版本只能先升级到新批次的
+第一个版本，才能继续往后升级。每当管理员创建一个带有版本约束的升级信息时，stage
+自动增加到下一个批次。
+
+增加同一个 stage 的升级信息时，需要同步该 stage 内的各个版本升级链接为最新的升级
+链接。增加新 stage 的升级信息时，只能同步上一 stage 中最新版本的升级链接为最新的
+升级链接。
+
 #+begin_src nim :noweb-ref add-upgrade
   post "/upgrades":
     check_token(request):
@@ -412,8 +422,21 @@ URL 。
         version = data["version"].getNum
         system = data["system-board"].getNum
         lock = data["lock-board"].getNum
-      if db.tryExec(sql"insert into upgrades(type, system_board, lock_board, state, version, url) values(?, ?, ?, 1, ?, ?)", tipe, system, lock, version, url):
-        discard redis.hset(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock, url)
+        constraint = data["constraint"].getNum
+        maxstagestr = db.getValue(sql"select max(stage) from upgrades where type = ? and system_board = ? and lock_board = ?", tipe, system, lock)
+      var maxstage: int = 0
+      discard maxstagestr.parseInt(maxstage)
+      let newstage: int = if constraint > 0: maxstage + 1 else: maxstage
+      let insertsql = "insert into upgrades(type, system_board, lock_board, state, version, url, \"constraint\", stage) values(?, ?, ?, 1, ?, ?, ?, ?)"
+      if db.tryInsertID(sql(insertsql), tipe, system, lock, version, url, constraint, newstage) != -1:
+        if constraint > 0:
+          let lastversionstr = db.getValue(sql"select max(version) from upgrades where type = ? and system_board = ? and lock_board = ? and stage = ?", tipe, system, lock, maxstage)
+          if lastversionstr != nil and lastversionstr != "":
+            discard redis.hset(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock & "-" & lastversionstr, url)
+        else:
+          let rows = db.getAllRows(sql"select version from upgrades where type = ? and system_board = ? and lock_board = ? and stage = ? and version < ?", tipe, system, lock, maxstage, version)
+          for row in rows:
+            discard redis.hset(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock & "-" & row[0], url)
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http500, "Database Error"
@@ -425,7 +448,8 @@ URL 。
 #+begin_src nim :noweb-ref upgrade-detail
   get "/upgrades/@id":
     check_token(request):
-      let row = db.getRow(sql"select id, type, state, system_board, lock_board, version, url from upgrades where id = ?", @"id")
+      let query = "select id, type, state, system_board, lock_board, version, url, \"constraint\", stage from upgrades where id = ?"
+      let row = db.getRow(sql(query), @"id")
       if row[0] != nil:
         let data = row2upgrade(row)
         resp Http200, @[("content-type", "application/json")], $data
@@ -434,16 +458,12 @@ URL 。
 #+end_src
 ** 修改升级
 
-修改升级信息需要如下参数。
+修改升级信息只允许修改升级信息的状态，需要如下参数。
 
 | name         | type   | default | note                 |
 |--------------+--------+---------+----------------------|
-| type         | string |   boxos | 升级类型             |
+| id           | int    |         | 升级 ID              |
 | state        | int    |       0 | 升级状态             |
-| system-board | int    |       0 | system 主板型号      |
-| lock-board   | int    |       0 | 锁控板型号           |
-| version      | int    |      18 | 升级版本             |
-| url          | string |         | 升级索引文件链接地址 |
 
 当升级的状态变为 1 或 2 时，需要把升级信息同步到 prerelease 缓存上。此时，只有在
 测试名单中的设备能获取到升级通知。当升级状态变为 15 时，需要把升级信息同步到
@@ -454,19 +474,33 @@ release。此后，所有的设备都会得到升级通知。
     check_token(request):
       let
         data = parseJson(request.body)
-        tipe = data["type"].getStr
         state = data["state"].getNum
-        system = data["system-board"].getNum
-        lock = data["lock-board"].getNum
-        version = data["version"].getNum
-        url = data["url"].getStr
-      if db.tryExec(sql"update upgrades set type = ?, state = ?, system_board = ?, lock_board = ?, version = ?, url = ? where id = ?", tipe, state, system, lock, version, url, @"id"):
-        discard redis.hdel(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock)
-        discard redis.hdel(redisClient, "upgrade.release." & tipe, $system & "-" & $lock)
-        if state == 1 or state == 2:
-          discard redis.hset(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock, url)
-        elif state == 15:
-          discard redis.hset(redisClient, "upgrade.release." & tipe, $system & "-" & $lock, url)
+      if db.tryExec(sql"update upgrades set state = ? where id = ?", state, @"id"):
+        if state == 15:
+          let rows = db.getAllRows(sql"select type, system_board, lock_board, version, stage from upgrades where stage = (select stage from upgrades where id = ?)", @"id")
+          var
+            stagestr = ""
+            tipe = ""
+            system = ""
+            lock = ""
+          for row in rows:
+            let version = row[3]
+            stagestr = row[4]
+            tipe = row[0]
+            system = row[1]
+            lock = row[2]
+            var url = redis.hget(redisClient, "upgrade.prerelease." & tipe, system & "-" & lock & "-" & version)
+            if url != nil:
+              discard redis.hset(redisClient, "upgrade.release." & tipe, system & "-" & lock & "-" & version, url)
+          var stage: int = 0
+          discard stagestr.parseInt(stage)
+          let query = "select version from upgrades where tipe = " & tipe & " and system_board = " & system & " and lock_board = " & lock & " and stage = ?"
+          let rows1 = db.getAllRows(sql(query), stage)
+          for row in rows1:
+            let version = row[0]
+            var url = redis.hget(redisClient, "upgrade.prerelease." & tipe, system & "-" & lock & "-" & version)
+            if url != nil:
+              discard redis.hset(redisClient, "upgrade.release." & tipe, system & "-" & lock & "-" & version, url)
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http500, "Database Error"
@@ -480,15 +514,27 @@ type, system-board 和 lock-board。这三个变量只能从数据库中获取�
 #+begin_src nim :noweb-ref delete-upgrade
   delete "/upgrades/@id":
     check_token(request):
-      let row = db.getRow(sql"select id, type, system_board, lock_board from upgrades where id = ?", @"id")
+      let row = db.getRow(sql"select id, type, system_board, lock_board, version, url from upgrades where id = ?", @"id")
       if row[0] != nil:
         let
           tipe = row[1]
           system = row[2]
           lock = row[3]
+          version = row[4]
+          url = row[5]
         if db.tryExec(sql"delete from upgrades where id = ?", @"id"):
-          discard redis.hdel(redisClient, "upgrade.release." & tipe, $system & "-" & $lock)
-          discard redis.hdel(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock)
+          let
+            releasekey = "upgrade.release." & tipe
+            prereleasekey = "upgrade.prerelease." & tipe
+            field = system & "-" & lock & "-" & version
+          discard redis.hdel(redisClient, releasekey, field)
+          discard redis.hdel(redisClient, prereleasekey, field)
+          for key, value in redis.hPairs(redisClient, releasekey):
+            if value == url:
+              discard redis.hdel(redisClient, releasekey, key)
+          for key, value in redis.hPairs(redisClient, prereleasekey):
+            if value == url:
+              discard redis.hdel(redisClient, prereleasekey, key)
           resp Http200, ""
         else:
           resp Http500, "Database Error"
@@ -634,21 +680,27 @@ row2upgrade 把数据库的结果集转化成 JsonNode。
     let
       idstr = row[0]
       tipe = row[1]
-      systemstr = row[2]
-      lockstr = row[3]
-      statestr = row[4]
+      statestr = row[2]
+      systemstr = row[3]
+      lockstr = row[4]
       versionstr = row[5]
       url = row[6]
+      constraintstr = row[7]
+      stagestr = row[8]
     var
       id: int = 0
       system: int = 0
       lock: int = 0
       state: int = 0
       version: int = 0
+      constraint: int = 0
+      stage: int = 0
     discard idstr.parseInt(id)
     discard systemstr.parseInt(system)
     discard lockstr.parseInt(lock)
     discard statestr.parseInt(state)
     discard versionstr.parseInt(version)
-    result = %* { "id": id, "type": tipe, "system-board": system, "lock-board": lock, "state": state, "version": version, "url": url }
+    discard constraintstr.parseInt(constraint)
+    discard stagestr.parseInt(stage)
+    result = %* { "id": id, "type": tipe, "system-board": system, "lock-board": lock, "state": state, "version": version, "url": url, "constraint": constraint, "stage": stage }
 #+end_src
