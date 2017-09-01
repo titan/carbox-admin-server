@@ -141,32 +141,3 @@ wait_for "$@"
   #! /bin/sh
   docker rmi <<tag>>
 #+end_src
-
-** 启动容器
-#+begin_src yaml :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/docker-compose.yaml
-  version: '3'
-  services:
-    adminer:
-      image: <<tag>>
-      ports:
-        - "8888:8888"
-      depends_on:
-        - cache
-        - db
-      command: sh -c '/wait-for db:5432 -- /admin-api-server'
-    cache:
-      command: redis-server --appendonly yes
-      image: redis:4-alpine
-      volumes:
-        - "./cachedata:/data"
-    db:
-      image: postgres:10-alpine
-      environment:
-        POSTGRES_USER: box
-        POSTGRES_DB: box
-        POSTGRES_PASSWORD: box2017
-        LANG: zh_CN.utf8
-      volumes:
-        - "./initdb.d:/docker-entrypoint-initdb.d"
-        - "./pgdata:/var/lib/postgresql/data"
-#+end_src
