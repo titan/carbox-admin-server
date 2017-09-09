@@ -30,3 +30,4 @@ CREATE TABLE "upgrades" (
   "lock_board" int DEFAULT 0,
   "url" varchar(1024) NOT NULL
 );
+CREATE UNIQUE INDEX "upgrades_unique_idx" ON "upgrades" USING "btree" ("type", "version", "system_board", "lock_board");

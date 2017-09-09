@@ -414,8 +414,10 @@ state 的可选范围包括：
         system = data["system-board"].getNum
         lock = data["lock-board"].getNum
         insertsql = "insert into upgrades(type, system_board, lock_board, state, version, url) values(?, ?, ?, 1, ?, ?)"
-      if db.tryInsertID(sql(insertsql), tipe, system, lock, version, url) != -1:
+        id = db.tryInsertID(sql(insertsql), tipe, system, lock, version, url)
+      if id != -1:
         discard redis.hset(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock & "-" & $version, url)
+        data["id"] = newJInt(id)
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http500, "Database Error"
