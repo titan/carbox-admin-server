@@ -23,10 +23,6 @@ properties:
     description: 版本编号
     example: 1
     type: int
-  constraint:
-    description: 最小版本约束
-    example: 1
-    type: int
   url:
     description: 升级包索引文件下载链接
     example: http://xxx.com/xxx
