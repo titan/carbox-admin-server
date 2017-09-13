@@ -152,7 +152,7 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
           let countrow = db.getRow(sql"select count(mac) from devices")
           var count: int = 0
           discard countrow[0].parseInt(count)
-          let rows = db.getAllRows(sql"select mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no from devices limit ? offset ?", limit, offset)
+          let rows = db.getAllRows(sql"select mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no, speaker from devices limit ? offset ?", limit, offset)
           var devices: JsonNode = newJArray()
           for row in rows:
             devices.add(row2device(row))
@@ -279,7 +279,7 @@ system主板型号:
 #+begin_src nim :noweb-ref device-detail
   get "/devices/@mac":
     check_token(request):
-      let row = db.getRow(sql"select mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no from devices where mac = ?", @"mac")
+      let row = db.getRow(sql"select mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no, speaker from devices where mac = ?", @"mac")
       if row != nil and row[0] != nil:
         let data = row2device(row)
         resp Http200, @[("content-type", "application/json")], $data
@@ -634,6 +634,7 @@ row2device 把数据库的结果集转化成 JsonNode。
       amount_str = row[7]
       router_str = row[8]
       sim_str = row[9]
+      speaker_str = row[10]
     var
       system: int = 0
       lock: int = 0
@@ -643,6 +644,7 @@ row2device 把数据库的结果集转化成 JsonNode。
       amount: int = 0
       router: int = 0
       sim: int = 0
+      speaker: int = 0
     discard system_str.parseInt(system)
     discard lock_str.parseInt(lock)
     discard wireless_str.parseInt(wireless)
@@ -651,7 +653,8 @@ row2device 把数据库的结果集转化成 JsonNode。
     discard amount_str.parseInt(amount)
     discard router_str.parseInt(router)
     discard sim_str.parseInt(sim)
-    result = %* { "mac": mac, "address": address, "system-board": system, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": amount, "router-board": router, "sim-no": sim }
+    discard speaker_str.parseInt(speaker)
+    result = %* { "mac": mac, "address": address, "system-board": system, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": amount, "router-board": router, "sim-no": sim, "speaker": speaker }
 #+end_src
 
 ** row2upgrade
