@@ -188,6 +188,7 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
 
 | name         | type   | default | note             |
 |--------------+--------+---------+------------------|
+| pin          | string |         | pin码            |
 | mac          | string |         | mac地址          |
 | address      | string |         | 设备安放地址     |
 | system-board | int    |       0 | system 主板型号  |
@@ -197,6 +198,11 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
 | antenna      | int    |       0 | 天线类型         |
 | card-reader  | int    |       0 | 读卡器类型       |
 | speaker      | int    |       0 | 扬声器类型       |
+| router-board | int    |       0 | 路由板型号       |
+| sim-no       | string |       0 | sim卡号          |
+
+PIN 码不保存到数据库中，保存数据时，要把缓存中的 PIN 码删除掉，否则未登记列表仍
+然能列出该设备。
 
 system主板型号:
 
@@ -255,6 +261,7 @@ system主板型号:
     check_token(request):
       let
         data = parseJson(request.body)
+        pin = data["pin"].getStr
         mac = data["mac"].getStr
         address = data["address"].getStr
         system = data["system-board"].getNum
@@ -266,6 +273,8 @@ system主板型号:
         router = data["router-board"].getNum
         sim_no = data["sim-no"].getNum
       if db.tryExec(sql"insert into devices(mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", mac, address, system, lock, wireless, antenna, card_reader, lock_amount, router, sim_no):
+
+        discard redis.del(redisClient, @["pin." & pin])
         resp Http200, @[("content-type", "application/json")], $data
       else:
         resp Http500, "Database Error"
