@@ -1,7 +1,7 @@
 
 * 程序框架
 #+begin_src nim :exports code :noweb yes :mkdirp yes :tangle /dev/shm/admin-server/src/admin_api_server.nim
-  import jester, asyncdispatch, json, db_postgres as pg, random, redis as redis
+  import jester, asyncdispatch, json, db_postgres as pg, random, redis as redis, times
   import parseutils, strutils
 
   settings:
@@ -79,8 +79,7 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
 #+begin_src nim :noweb-ref signin
   post "/sessions":
     try:
-      let data = parseJson(request.body)
-      let uid = db.getValue(sql"select id from accounts where account = ? and password = ?", data["account"].getStr, data["password"].getStr)
+      let uid = db.getValue(sql"select id from accounts where account = ? and password = ?", @"account", @"password")
       if uid != "":
         let
           session = generate_session()
@@ -103,8 +102,9 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
 #+begin_src nim :noweb-ref generate-session
   proc generate_session(): JsonNode =
     let
-      access_token = randstr(32)
-      refresh_token = randstr(32)
+      seed = cast[int](epochTime() * 1000)
+      access_token = randstr(32, seed)
+      refresh_token = randstr(32, seed + 1)
     result = %* { "access-token": access_token, "refresh-token": refresh_token, "expires-in": 3600 }
 #+end_src
 
@@ -288,23 +288,12 @@ system主板型号:
 #+begin_src nim :noweb-ref register-device
   post "/devices":
     check_token(request):
-      let
-        data = parseJson(request.body)
-        pin = data["pin"].getStr
-        mac = data["mac"].getStr
-        address = data["address"].getStr
-        system = data["system-board"].getNum
-        lock = data["lock-board"].getNum
-        wireless = data["wireless"].getNum
-        antenna = data["antenna"].getNum
-        card_reader = data["card-reader"].getNum
-        lock_amount = data["lock-amount"].getNum
-        router = data["router-board"].getNum
-        sim_no = data["sim-no"].getNum
+      <<parse-device-form>>
       if db.tryExec(sql"insert into devices(mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", mac, address, system, lock, wireless, antenna, card_reader, lock_amount, router, sim_no):
 
-        discard redis.del(redisClient, @["pin." & pin])
-        resp Http200, @[("content-type", "application/json")], $data
+        discard redis.del(redisClient, @["pin." & @"pin"])
+        <<device-to-json>>
+        resp Http200, @[("content-type", "application/json")], $body
       else:
         resp Http500, "Database Error"
 #+end_src
@@ -345,20 +334,10 @@ system主板型号:
 #+begin_src nim :noweb-ref modify-device
   put "/devices/@mac":
     check_token(request):
-      let
-        data = parseJson(request.body)
-        mac = data["mac"].getStr
-        address = data["address"].getStr
-        system = data["system-board"].getNum
-        lock = data["lock-board"].getNum
-        wireless = data["wireless"].getNum
-        antenna = data["antenna"].getNum
-        card_reader = data["card-reader"].getNum
-        lock_amount = data["lock-amount"].getNum
-        router = data["router-board"].getNum
-        sim_no = data["sim-no"].getNum
+      <<parse-device-form>>
       if db.tryExec(sql"update devices set address = ?, system_board = ?, lock_board = ?, wireless = ?, antenna = ?, card_reader = ?, lock_amount = ?, router_board = ?, sim_no = ? where mac = ?", address, system, lock, wireless, antenna, card_reader, lock_amount, router, sim_no, mac):
-        resp Http200, @[("content-type", "application/json")], $data
+        <<device-to-json>>
+        resp Http200, @[("content-type", "application/json")], $body
       else:
         resp Http500, "Database Error"
 #+end_src
@@ -445,18 +424,18 @@ state 的可选范围包括：
   post "/upgrades":
     check_token(request):
       let
-        data = parseJson(request.body)
-        tipe = data["type"].getStr
-        url = data["url"].getStr
-        version = data["version"].getNum
-        system = data["system-board"].getNum
-        lock = data["lock-board"].getNum
+        tipe = @"type"
+        url = @"url"
+        version = parseInt(@"version")
+        system = parseInt(@"system-board")
+        lock = parseInt(@"lock-board")
+        state = 1
         insertsql = "insert into upgrades(type, system_board, lock_board, state, version, url) values(?, ?, ?, 1, ?, ?)"
         id = db.tryInsertID(sql(insertsql), tipe, system, lock, version, url)
       if id != -1:
         discard redis.hset(redisClient, "upgrade.prerelease." & tipe, $system & "-" & $lock & "-" & $version, url)
-        data["id"] = newJInt(id)
-        resp Http200, @[("content-type", "application/json")], $data
+        <<upgrade-to-json>>
+        resp Http200, @[("content-type", "application/json")], $body
       else:
         resp Http500, "Database Error"
 #+end_src
@@ -495,19 +474,19 @@ release。此后，所有的设备都会得到升级通知。
 #+begin_src nim :noweb-ref modify-upgrade
   put "/upgrades/@id":
     check_token(request):
+      var state = parseInt(@"state")
       let
-        data = parseJson(request.body)
-        state = data["state"].getNum
-        url = data["url"].getStr
+        id = @"id"
+        url = @"url"
         row = db.getRow(sql"select type, system_board, lock_board, version, url from upgrades where id = ?", @"id")
       if row != nil:
         let
           tipe = row[0]
-          system = row[1]
-          lock = row[2]
-          version = row[3]
+          system = parseInt(row[1])
+          lock = parseInt(row[2])
+          version = parseInt(row[3])
           origin_url = row[4]
-          field = system & "-" & lock & "-" & version
+          field = row[1] & "-" & row[2] & "-" & row[3]
           releasekey = "upgrade.release." & tipe
           prereleasekey = "upgrade.prerelease." & tipe
         if origin_url == url:
@@ -515,21 +494,26 @@ release。此后，所有的设备都会得到升级通知。
           if db.tryExec(sql"update upgrades set state = ? where id = ?", state, @"id"):
             if state == 15:
               discard redis.hset(redisClient, releasekey, field, url)
-              resp Http200, @[("content-type", "application/json")], $data
+              <<upgrade-to-json>>
+              resp Http200, @[("content-type", "application/json")], $body
             elif state == -1:
               discard redis.hdel(redisClient, releasekey, field)
               discard redis.hdel(redisClient, prereleasekey, field)
-              resp Http200, @[("content-type", "application/json")], $data
+              <<upgrade-to-json>>
+              resp Http200, @[("content-type", "application/json")], $body
             else:
-              resp Http200, @[("content-type", "application/json")], $data
+              <<upgrade-to-json>>
+              resp Http200, @[("content-type", "application/json")], $body
           else:
             resp Http500, "Database Error"
         else:
           # just update url and rollback state to 1
-          if db.tryExec(sql"update upgrades set state = 1, url = ? where id = ?", url, @"id"):
+          if db.tryExec(sql"update upgrades set state = 1, url = ? where id = ?", url, id):
             discard redis.hdel(redisClient, releasekey, field)
             discard redis.hset(redisClient, prereleasekey, field, url)
-            resp Http200, @[("content-type", "application/json")], $data
+            state = 1
+            <<upgrade-to-json>>
+            resp Http200, @[("content-type", "application/json")], $body
           else:
             resp Http500, "Database Error"
 #+end_src
@@ -579,8 +563,8 @@ type, system-board 和 lock-board。这三个变量只能从数据库中获取�
 
 #+begin_src nim :noweb-ref randstr
 
-  proc randstr(length: int): string =
-    randomize()
+  proc randstr(length: int, seed: int): string =
+    randomize(seed)
     let alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
     let alen = len(alphabet)
     result = ""
@@ -722,4 +706,37 @@ row2upgrade 把数据库的结果集转化成 JsonNode。
     discard statestr.parseInt(state)
     discard versionstr.parseInt(version)
     result = %* { "id": id, "type": tipe, "system-board": system, "lock-board": lock, "state": state, "version": version, "url": url }
+#+end_src
+** parse-device-form
+
+把 device form 中的参数转为 nim 的 int 类型，string 类型的参数忽略。
+
+#+begin_src nim :noweb-ref parse-device-form
+  let
+    mac = @"mac"
+    address = @"address"
+    system = parseInt(@"system-board")
+    lock = parseInt(@"lock-board")
+    wireless = parseInt(@"wireless")
+    antenna = parseInt(@"antenna")
+    card_reader = parseInt(@"card-reader")
+    lock_amount = parseInt(@"lock-amount")
+    router = parseInt(@"router-board")
+    sim_no = parseInt(@"sim-no")
+#+end_src
+
+** device-to-json
+
+把 device 的内容转成 json，放置到变量 body 中。
+
+#+begin_src nim :noweb-ref device-to-json
+  let body = %*{"mac": mac, "address": address, "system-board": system, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": lock_amount, "router-board": router, "sim-no": sim_no}
+#+end_src
+
+** upgrade-to-json
+
+把 upgrade 的内容转成 json，放置到变量 body 中。
+
+#+begin_src nim :noweb-ref upgrade-to-json
+  let body = %* { "id": id, "type": tipe, "system-board": system, "lock-board": lock, "version": version, "url": url, "state": state }
 #+end_src
