@@ -25,6 +25,7 @@
 
     <<signin>>
     <<signout>>
+    <<refresh-token>>
     <<list-devices>>
     <<list-unregistered-devices>>
     <<register-device>>
@@ -119,6 +120,34 @@ refresh token。要知道，用户退出时，提供的只有 access token，如
       resp Http200, ""
 #+end_src
 ** 刷新令牌
+
+当 access token 过期后，用户可以刷新令牌，在不用登录的情况下，继续使用 app。
+access token 的有效期是 1 个小时，refresh token 的有效期是 30 天。如果 30 天后，
+用户仍然没有刷新令牌，那么必须重新登录。刷新令牌的算法与用户登录基本相同，区别是
+用户登录从数据库中获取 UID，而刷新令牌从缓存中获取 UID。
+
+#+begin_src nim :noweb-ref refresh-token
+  put "/sessions":
+    try:
+      let
+        uid = redisClient.get("session.refresh." & @"refresh-token")
+      if uid != redisNil:
+        let
+          session = generate_session()
+          refresh_token = session["refresh-token"].getStr
+          access_token = session["access-token"].getStr
+          value = %* { "uid": uid, "refresh": refresh_token }
+        discard redisClient.setex("session.access." & access_token, 3600, $value)
+        discard redisClient.setex("session.refresh." & refresh_token, 3600 * 24 * 30, uid)
+        discard redisClient.del(@["session.refresh." & @"refresh-token"])
+        resp Http200, @[("content-type", "application/json")], $session
+      else:
+        resp Http401, "Invalid Token"
+    except:
+      resp Http500, getCurrentExceptionMsg()
+
+#+end_src
+
 * 设备管理
 ** 设备列表
 
@@ -576,8 +605,8 @@ redisClient 是全局变量，在 template 中可以直接使用。
   template check_token(request: Request, actions: untyped): untyped =
     try:
       let access_token {.inject.} = $request.headers["token"]
-      let value = redisClient.get("session.access." & access_token)
-      if value != nil:
+      let value: string = redisClient.get("session.access." & access_token)
+      if value != redisNil:
         let data = parseJson(value)
         let refresh_token {.inject.} = data["refresh"].getStr
         let uid {.inject.} = data["uid"].getStr
