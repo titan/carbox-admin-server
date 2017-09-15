@@ -289,7 +289,7 @@ system主板型号:
   post "/devices":
     check_token(request):
       <<parse-device-form>>
-      if db.tryExec(sql"insert into devices(mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, router_board, sim_no) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", mac, address, system, lock, wireless, antenna, card_reader, lock_amount, router, sim_no):
+      if db.tryExec(sql"insert into devices(mac, address, system_board, lock_board, wireless, antenna, card_reader, lock_amount, speaker, router_board, sim_no) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", mac, address, system, lock, wireless, antenna, card_reader, lock_amount, speaker, router, sim_no):
 
         discard redis.del(redisClient, @["pin." & @"pin"])
         <<device-to-json>>
@@ -335,7 +335,7 @@ system主板型号:
   put "/devices/@mac":
     check_token(request):
       <<parse-device-form>>
-      if db.tryExec(sql"update devices set address = ?, system_board = ?, lock_board = ?, wireless = ?, antenna = ?, card_reader = ?, lock_amount = ?, router_board = ?, sim_no = ? where mac = ?", address, system, lock, wireless, antenna, card_reader, lock_amount, router, sim_no, mac):
+      if db.tryExec(sql"update devices set address = ?, system_board = ?, lock_board = ?, wireless = ?, antenna = ?, card_reader = ?, lock_amount = ?, speaker = ?, router_board = ?, sim_no = ? where mac = ?", address, system, lock, wireless, antenna, card_reader, lock_amount, speaker, router, sim_no, mac):
         <<device-to-json>>
         resp Http200, @[("content-type", "application/json")], $body
       else:
@@ -723,6 +723,7 @@ row2upgrade 把数据库的结果集转化成 JsonNode。
     lock_amount = parseInt(@"lock-amount")
     router = parseInt(@"router-board")
     sim_no = parseInt(@"sim-no")
+    speaker = parseInt(@"speaker")
 #+end_src
 
 ** device-to-json
@@ -730,7 +731,7 @@ row2upgrade 把数据库的结果集转化成 JsonNode。
 把 device 的内容转成 json，放置到变量 body 中。
 
 #+begin_src nim :noweb-ref device-to-json
-  let body = %*{"mac": mac, "address": address, "system-board": system, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": lock_amount, "router-board": router, "sim-no": sim_no}
+  let body = %*{"mac": mac, "address": address, "system-board": system, "lock-board": lock, "wireless": wireless, "antenna": antenna, "card-reader": card_reader, "lock-amount": lock_amount, "router-board": router, "sim-no": sim_no, "speaker": speaker}
 #+end_src
 
 ** upgrade-to-json
